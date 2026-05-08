@@ -1,5 +1,7 @@
 library(shiny)
-library(tidyverse)
+library(dplyr)
+library(readr)
+library(stringr)
 library(reticulate)
 library(reactable)
 library(bslib)

@@ -1,9 +1,8 @@
 import pandas as pd
 import numpy as np
-from sentence_transformers import SentenceTransformer, util
+from sentence_transformers import SentenceTransformer
 from scipy.spatial import distance as ssd
 from pathlib import Path
-import sys
 
 
 SUPPORTED_MODELS = ["all-MiniLM-L6-v2", "all-MiniLM-L12-v2"]
