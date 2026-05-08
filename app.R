@@ -61,7 +61,7 @@ ui <- page_fillable(
   
   tags$head(
     tags$style(HTML("
-      .card { height: 100%; } 
+      .card { height: 100%; }
       .form-group { margin-bottom: 15px; }
       .no-gap { gap: 0 !important; }
       .scrollable-checkboxes {
@@ -73,6 +73,14 @@ ui <- page_fillable(
         background-color: #f8f9fa;
       }
       .filter-actions { font-size: 0.8rem; margin-bottom: 5px; }
+    ")),
+    tags$script(HTML("
+      $(document).on('keydown', '#search_query', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          $('#run_search').click();
+        }
+      });
     "))
   ),
   
