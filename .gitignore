@@ -1,0 +1,16 @@
+# R
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+# Python virtual environment
+python_env/
+
+# Pre-computed embeddings (generated automatically on first search run)
+data/local_embeddings/
+data/embeddings/
+python/local_embeddings/
+
+# macOS
+**/*.DS_Store

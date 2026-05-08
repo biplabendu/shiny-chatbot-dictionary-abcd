@@ -1,0 +1,6 @@
+.Rproj.user/
+.venv/
+renv/library/
+renv/staging/
+__pycache__/
+*.pyc
