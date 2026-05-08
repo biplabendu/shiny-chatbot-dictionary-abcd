@@ -266,24 +266,44 @@ server <- function(input, output, session) {
   # --- 1. SEARCH EVENT ---
   observeEvent(input$run_search, {
     req(input$search_query)
-    
-    # --- [NEW] POP UP BOX LOGIC ---
+
+
+ # Show persistent notification if embeddings don't yet exist for selected model.
+ # The Sys.sleep below flushes it to the browser before the blocking Python call.
+ emb_file <- if (isolate(input$choose_model) == "no_img") {
+   "data/local_embeddings/embeddings_all-MiniLM-L6-v2_noimag.npy"
+ } else {
+   "data/local_embeddings/embeddings_all-MiniLM-L6-v2.npy"
+ }
+ emb_notif_id <- if (!file.exists(emb_file)) {
+   showNotification(
+     ui = tagList(
+       tags$strong("Building embeddings for the first time."),
+            "This may take several minutes — please wait."
+          ),
+          duration = NULL,
+          type = "message",
+          closeButton = FALSE
+        )                                                                                                                                               
+      } else {
+        NULL
+      }
     # Show a modal, wait 1 second, then remove it
     showModal(modalDialog(
       title = NULL,
-      "Searching...", 
-      footer = NULL, 
-      size = "s", 
+      "Searching...",
+      footer = NULL,
+      size = "s",
       easyClose = FALSE
     ))
     Sys.sleep(1) # Keeps the box visible for 1 second
     removeModal()
-    # ------------------------------
-    
+
     # Visual Feedback (Spinner on button)
     updateActionButton(session, "run_search", label = "Searching...", icon = icon("spinner", class = "fa-spin"))
     on.exit({
       updateActionButton(session, "run_search", label = "Search Variables", icon = icon("magnifying-glass"))
+      if (!is.null(emb_notif_id)) removeNotification(emb_notif_id)
     })
     
     tryCatch({
