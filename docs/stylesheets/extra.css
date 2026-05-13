@@ -178,6 +178,13 @@ samp,
   color: var(--brand-primary) !important;
 }
 
+/* ----- Full-width content ----- */
+/* The RTD theme caps .wy-nav-content at 800px. Let it fill the available
+   space next to the sidebar so the site stretches across wide browsers. */
+.wy-nav-content {
+  max-width: none !important;
+}
+
 /* ----- Mermaid diagrams ----- */
 /* pymdownx.superfences renders mermaid blocks as <pre class="mermaid">.
    Drop the RTD theme's pre-block styling so the SVG sits on a clean canvas. */
