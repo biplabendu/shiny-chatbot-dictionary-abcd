@@ -41,8 +41,18 @@ table_all_cols <- c("similarity", names(dd))
 table_hidden_cols <- setdiff(table_all_cols, "name")
 table_hidden_cols_json <- jsonlite::toJSON(table_hidden_cols, auto_unbox = TRUE)
 
+# Desktop view: curated 8 columns in this order. On row click, the modal
+# still shows every column (the visible 8 first, then the rest).
+desktop_visible_cols <- c(
+  "similarity", "name", "label",
+  "domain", "sub_domain", "source", "type_var", "type_level"
+)
+desktop_visible_cols     <- intersect(desktop_visible_cols, table_all_cols)
+desktop_hidden_cols      <- setdiff(table_all_cols, desktop_visible_cols)
+desktop_hidden_cols_json <- jsonlite::toJSON(desktop_hidden_cols, auto_unbox = TRUE)
+
 # Mobile view: hide every column except name + label (description)
-mobile_hidden_cols <- setdiff(table_all_cols, c("name", "label"))
+mobile_hidden_cols      <- setdiff(table_all_cols, c("name", "label"))
 mobile_hidden_cols_json <- jsonlite::toJSON(mobile_hidden_cols, auto_unbox = TRUE)
 
 # 3. Domain Logic (from ui branch)
@@ -91,16 +101,23 @@ ui <- page_fillable(
       $(document).on('shiny:connected', _reportWidth);
       $(window).on('resize', _reportWidth);
 
-      // After the results table renders on mobile, hide all columns
-      // except `name` and `label` to keep the view minimal.
-      var MOBILE_HIDDEN = ", mobile_hidden_cols_json, ";
+      // After the results table renders, apply the viewport-appropriate
+      // hidden-columns set so the table state is explicit (the CSV-download
+      // button reads state.hiddenColumns).
+      //   Desktop: hide everything except the curated 8 columns.
+      //   Mobile:  hide everything except `name` and `label`.
+      var DESKTOP_HIDDEN = ", desktop_hidden_cols_json, ";
+      var MOBILE_HIDDEN  = ", mobile_hidden_cols_json, ";
       $(document).on('shiny:value', function(event) {
         if (event.name !== 'results_table') return;
-        if (!window.matchMedia('(max-width: 768px)').matches) return;
         setTimeout(function() {
-          try { Reactable.setHiddenColumns('results_table', MOBILE_HIDDEN); }
-          catch (e) { /* table not ready yet */ }
-        }, 200);
+          try {
+            var hidden = window.matchMedia('(max-width: 768px)').matches
+                       ? MOBILE_HIDDEN
+                       : DESKTOP_HIDDEN;
+            Reactable.setHiddenColumns('results_table', hidden);
+          } catch (e) { /* table not ready yet */ }
+        }, 150);
       });
 
     ")))
@@ -195,15 +212,19 @@ ui <- page_fillable(
                   onclick = "(function(){var state=Reactable.getState('results_table')||{};var hidden=state.hiddenColumns||[];var all=state.columns?state.columns.map(function(c){return c.id;}):Object.keys((state.data&&state.data[0])||{});var visible=all.filter(function(id){return hidden.indexOf(id)===-1;});Reactable.downloadDataCSV('results_table','search_results.csv',{columnIds:visible});})()"
                 ),
                 
-                # Show only name (JS Version from ui)
+                # Toggle "name only" ↔ default 8-column view
                 tags$button(
                   "Show only name column",
                   class = "btn btn-secondary w-100",
                   onclick = paste0(
-                    "Reactable.setHiddenColumns('results_table', function(prevColumns) { ",
-                    "return prevColumns.length === 0 ? ",
-                    table_hidden_cols_json,
-                    " : [] })"
+                    "(function(){",
+                    "var ONLY_NAME=", table_hidden_cols_json, ";",
+                    "var DEFAULT=",   desktop_hidden_cols_json, ";",
+                    "Reactable.setHiddenColumns('results_table', function(prev){",
+                    "var same=prev.length===ONLY_NAME.length && ",
+                    "ONLY_NAME.every(function(c){return prev.indexOf(c)!==-1;});",
+                    "return same ? DEFAULT : ONLY_NAME;",
+                    "});})()"
                   )
                 )
               ),
@@ -346,12 +367,14 @@ server <- function(input, output, session) {
         raw_df <- {if (isolate(input$choose_model) == "no_img") {
           dd |> filter(!domain %in% c('Imaging'))
         } else {
-          dd 
-        }} %>% 
-          .[indices + 1, ] %>% 
-          mutate(similarity = round(similarities, 3)) %>% 
+          dd
+        }} %>%
+          .[indices + 1, ] %>%
+          mutate(similarity = round(similarities, 3)) %>%
           mutate(across(where(is.character), ~ stringr::str_replace_all(.x, "[\r\n]+", " "))) %>%
-          relocate(similarity, name, label)
+          # Put the 8 curated columns first so both the desktop table AND
+          # the row-click modal show them in this order; other columns follow.
+          relocate(any_of(desktop_visible_cols))
         
         master_results(raw_df)
         
@@ -392,18 +415,31 @@ server <- function(input, output, session) {
   output$results_table <- reactable::renderReactable({
     req(nrow(filtered_data()) > 0)
     data <- filtered_data()
-    
+
+    # Curated desktop columns (visible by default, custom display names) +
+    # every other column with show = FALSE so it's available for the
+    # row-click modal but not rendered in the table.
+    visible_defs <- list(
+      similarity = reactable::colDef(name = "Score",         minWidth = 80),
+      name       = reactable::colDef(name = "Variable Name", minWidth = 180),
+      label      = reactable::colDef(name = "Description",   minWidth = 380),
+      domain     = reactable::colDef(name = "Domain",        minWidth = 140),
+      sub_domain = reactable::colDef(name = "Sub-Domain",    minWidth = 140),
+      source     = reactable::colDef(name = "Source",        minWidth = 120),
+      type_var   = reactable::colDef(name = "Type",          minWidth = 100),
+      type_level = reactable::colDef(name = "Type Level",    minWidth = 100)
+    )
+    hidden_defs <- setNames(
+      lapply(desktop_hidden_cols, function(.x) reactable::colDef(show = FALSE)),
+      desktop_hidden_cols
+    )
+    column_defs <- c(visible_defs[intersect(names(visible_defs), names(data))], hidden_defs)
+
     reactable::reactable(
       data,
       # Note: no `elementId` — Shiny uses the output id ("results_table")
       # as the DOM id automatically. Setting it again triggers a warning.
-      columns = list(
-        label = reactable::colDef(minWidth = 450, name = "Description"),
-        name = reactable::colDef(minWidth = 200, name = "Variable Name"),
-        similarity = reactable::colDef(minWidth = 100, name = "Score"),
-        source = reactable::colDef(minWidth = 150),
-        domain = reactable::colDef(minWidth = 150)
-      ),
+      columns = column_defs,
       selection = "multiple",
       onClick = htmlwidgets::JS(
         "function(rowInfo, column) {",
