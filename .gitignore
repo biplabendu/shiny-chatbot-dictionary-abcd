@@ -17,5 +17,14 @@ sanity-chks/
 data/local_embeddings/
 python/local_embeddings/
 
+# Raw source CSVs — build inputs only. The deployed app uses the .parquet
+# (R UI) and the .npy/.npz artifacts (Python backend) in data/embeddings/.
+# Re-supply these locally (and re-run setup.sh) when you need to rebuild.
+data/dd-abcd-6_0.csv
+data/dd-abcd-6_0_minimal.csv
+data/dd-abcd-6_0_minimal_noimag.csv
+dd-abcd-6_0_minimal_noimag.csv
+dd-abcd-6_0_minimal_noimag-dummy.csv
+
 # macOS
 **/*.DS_Store
