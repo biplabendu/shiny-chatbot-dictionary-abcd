@@ -9,6 +9,7 @@ library(nanoparquet)
 
 # --- ENVIRONMENT CONFIG ---
 options(shiny.autoreload = TRUE)
+options(shiny.autoreload.legacy_warning = FALSE)  # silence "install watcher" nag
 
 # --- FILE SETUP ---
 dictionary_path <- "data/dd-abcd-6_0.parquet"
@@ -31,13 +32,28 @@ dd <- nanoparquet::read_parquet(dictionary_path) %>%
 
 # --- DATA PREP & CONFIG ---
 # 1. UI Filter Choices (from HEAD logic)
-choices_source <- unique(dd$source) %>% na.omit() %>% sort()
-choices_domain <- if("domain" %in% names(dd)) unique(dd$domain) %>% na.omit() %>% sort() else character(0)
+choices_source   <- unique(dd$source) %>% na.omit() %>% sort()
+choices_domain   <- if ("domain"   %in% names(dd)) unique(dd$domain)   %>% na.omit() %>% sort() else character(0)
+choices_type_var <- if ("type_var" %in% names(dd)) unique(dd$type_var) %>% na.omit() %>% sort() else character(0)
 
 # 2. JS Button Config (from ui branch)
 table_all_cols <- c("similarity", names(dd))
 table_hidden_cols <- setdiff(table_all_cols, "name")
 table_hidden_cols_json <- jsonlite::toJSON(table_hidden_cols, auto_unbox = TRUE)
+
+# Desktop view: curated 8 columns in this order. On row click, the modal
+# still shows every column (the visible 8 first, then the rest).
+desktop_visible_cols <- c(
+  "similarity", "name", "label",
+  "domain", "sub_domain", "source", "type_var", "type_level"
+)
+desktop_visible_cols     <- intersect(desktop_visible_cols, table_all_cols)
+desktop_hidden_cols      <- setdiff(table_all_cols, desktop_visible_cols)
+desktop_hidden_cols_json <- jsonlite::toJSON(desktop_hidden_cols, auto_unbox = TRUE)
+
+# Mobile view: hide every column except name + label (description)
+mobile_hidden_cols      <- setdiff(table_all_cols, c("name", "label"))
+mobile_hidden_cols_json <- jsonlite::toJSON(mobile_hidden_cols, auto_unbox = TRUE)
 
 # 3. Domain Logic (from ui branch)
 domain_all <- c(
@@ -49,45 +65,78 @@ domain_all <- c(
 
 # --- UI ---
 ui <- page_fillable(
-  theme = bs_theme(preset = "flatly"),
+  # Brand palette + typography matches docs/stylesheets/extra.css (mkdocs site).
+  # Bootstrap SASS retints buttons / .bg-primary / links / etc. automatically.
+  theme = bs_theme(
+    preset      = "flatly",
+    primary     = "#62272D",   # burgundy
+    secondary   = "#FDBF6F",   # warm orange
+    info        = "#DEEBF7",   # pale blue
+    warning     = "#FF7F00",   # orange
+    danger      = "#E31A1C",   # red
+    success     = "#33A02C",   # green
+    base_font   = bslib::font_google("Inter"),
+    heading_font = bslib::font_google("Inter"),
+    code_font   = bslib::font_google("Source Code Pro")
+  ),
   
   tags$head(
-    tags$style(HTML("
-      .card { height: 100%; }
-      .form-group { margin-bottom: 15px; }
-      .no-gap { gap: 0 !important; }
-      .scrollable-checkboxes {
-        max_height: 200px;
-        overflow-y: auto;
-        padding: 5px;
-        border: 1px solid #e9ecef;
-        border-radius: 4px;
-        background-color: #f8f9fa;
-      }
-      .filter-actions { font-size: 0.8rem; margin-bottom: 5px; }
-    ")),
-    tags$script(HTML("
+    # All app styling lives in www/app.css (Shiny serves www/ at the app root).
+    tags$link(rel = "stylesheet", type = "text/css", href = "app.css"),
+
+    tags$script(HTML(paste0("
       $(document).on('keydown', '#search_query', function(e) {
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
           $('#run_search').click();
         }
       });
-    "))
+
+      // Report viewport width to Shiny so the server can branch on mobile.
+      function _reportWidth() {
+        if (window.Shiny && Shiny.setInputValue) {
+          Shiny.setInputValue('window_width', window.innerWidth, {priority: 'event'});
+        }
+      }
+      $(document).on('shiny:connected', _reportWidth);
+      $(window).on('resize', _reportWidth);
+
+      // After the results table renders, apply the viewport-appropriate
+      // hidden-columns set so the table state is explicit (the CSV-download
+      // button reads state.hiddenColumns).
+      //   Desktop: hide everything except the curated 8 columns.
+      //   Mobile:  hide everything except `name` and `label`.
+      var DESKTOP_HIDDEN = ", desktop_hidden_cols_json, ";
+      var MOBILE_HIDDEN  = ", mobile_hidden_cols_json, ";
+      $(document).on('shiny:value', function(event) {
+        if (event.name !== 'results_table') return;
+        setTimeout(function() {
+          try {
+            var hidden = window.matchMedia('(max-width: 768px)').matches
+                       ? MOBILE_HIDDEN
+                       : DESKTOP_HIDDEN;
+            Reactable.setHiddenColumns('results_table', hidden);
+          } catch (e) { /* table not ready yet */ }
+        }, 150);
+      });
+
+    ")))
   ),
   
   title = "ABCD Semantic Search",
   
-  # Header
+  # Header (brand-burgundy bar — see .app-header in www/app.css)
   div(
-    class = "bg-primary text-white p-3 rounded-2 mb-2",
+    class = "app-header bg-primary text-white p-3 rounded-2 mb-2",
     h2("ABCD Data Dictionary Semantic Search", class = "m-0")
   ),
-  
+
   layout_sidebar(
     
     # --- LEFT SIDEBAR (Search Inputs) ---
     sidebar = sidebar(
+      id = "left_sidebar",
+      open = "open",
       width = 320,
       card_header("Search Parameters"),
       
@@ -137,15 +186,16 @@ ui <- page_fillable(
             
             # --- RIGHT SIDEBAR (Filters & Actions) ---
             sidebar = sidebar(
+              id = "right_sidebar",
               position = "right",
-              open = "open", 
+              open = "open",
               width = 350,
               card_header("Refine Results"),
               
               # 1. Action Buttons (Merged HEAD delete with ui Download/Hide)
               div(
                 class = "mb-4 border-bottom pb-3 d-flex flex-column gap-2",
-                h6("Actions", class = "fw-bold text-uppercase text-secondary small"),
+                h6("Actions", class = "fw-bold text-uppercase text-primary small"),
                 
                 # Delete Row (HEAD)
                 actionButton(
@@ -162,50 +212,60 @@ ui <- page_fillable(
                   onclick = "(function(){var state=Reactable.getState('results_table')||{};var hidden=state.hiddenColumns||[];var all=state.columns?state.columns.map(function(c){return c.id;}):Object.keys((state.data&&state.data[0])||{});var visible=all.filter(function(id){return hidden.indexOf(id)===-1;});Reactable.downloadDataCSV('results_table','search_results.csv',{columnIds:visible});})()"
                 ),
                 
-                # Show only name (JS Version from ui)
+                # Toggle "name only" ↔ default 8-column view
                 tags$button(
                   "Show only name column",
                   class = "btn btn-secondary w-100",
                   onclick = paste0(
-                    "Reactable.setHiddenColumns('results_table', function(prevColumns) { ",
-                    "return prevColumns.length === 0 ? ",
-                    table_hidden_cols_json,
-                    " : [] })"
+                    "(function(){",
+                    "var ONLY_NAME=", table_hidden_cols_json, ";",
+                    "var DEFAULT=",   desktop_hidden_cols_json, ";",
+                    "Reactable.setHiddenColumns('results_table', function(prev){",
+                    "var same=prev.length===ONLY_NAME.length && ",
+                    "ONLY_NAME.every(function(c){return prev.indexOf(c)!==-1;});",
+                    "return same ? DEFAULT : ONLY_NAME;",
+                    "});})()"
                   )
                 )
               ),
               
-              # 2. Filters (HEAD - Preserved as requested)
-              h6("Filters", class = "fw-bold text-uppercase text-secondary small"),
-              accordion(
-                open = c("Source", "Domain"), 
-                
-                accordion_panel(
-                  "Source",
-                  div(class = "filter-actions",
-                      actionLink("all_source", "Select All"), " | ",
-                      actionLink("none_source", "Deselect All")
-                  ),
-                  div(
-                    class = "scrollable-checkboxes",
-                    checkboxGroupInput("filter_source", label = NULL, 
-                                       choices = choices_source, 
-                                       selected = choices_source)
-                  )
-                ),
-                
-                accordion_panel(
-                  "Domain",
-                  div(class = "filter-actions",
-                      actionLink("all_domain", "Select All"), " | ",
-                      actionLink("none_domain", "Deselect All")
-                  ),
-                  div(
-                    class = "scrollable-checkboxes",
-                    checkboxGroupInput("filter_domain", label = NULL, 
-                                       choices = choices_domain, 
-                                       selected = choices_domain)
-                  )
+              # 2. Filters — searchable multi-select dropdowns.
+              # Empty selection = no filter applied (include all rows).
+              h6("Filters", class = "fw-bold text-uppercase text-primary small"),
+
+              selectizeInput(
+                "filter_source",
+                label = "Source",
+                choices = choices_source,
+                selected = NULL,
+                multiple = TRUE,
+                options = list(
+                  plugins = list("remove_button"),
+                  placeholder = "All sources (click to filter)"
+                )
+              ),
+
+              selectizeInput(
+                "filter_domain",
+                label = "Domain",
+                choices = choices_domain,
+                selected = NULL,
+                multiple = TRUE,
+                options = list(
+                  plugins = list("remove_button"),
+                  placeholder = "All domains (click to filter)"
+                )
+              ),
+
+              selectizeInput(
+                "filter_type_var",
+                label = "Variable Type",
+                choices = choices_type_var,
+                selected = NULL,
+                multiple = TRUE,
+                options = list(
+                  plugins = list("remove_button"),
+                  placeholder = "All types (click to filter)"
                 )
               )
             ),
@@ -259,6 +319,14 @@ server <- function(input, output, session) {
   observeEvent(input$run_search, {
     req(input$search_query)
 
+    # On mobile, auto-collapse BOTH sidebars so the table fills the screen.
+    # The bslib collapse-toggle (small arrow on each sidebar's edge) lets
+    # users re-open either panel.
+    if (isTRUE(isolate(input$window_width) <= 768)) {
+      bslib::sidebar_toggle("left_sidebar",  open = FALSE, session = session)
+      bslib::sidebar_toggle("right_sidebar", open = FALSE, session = session)
+    }
+
     # Show a modal, wait 1 second, then remove it
     showModal(modalDialog(
       title = NULL,
@@ -299,12 +367,14 @@ server <- function(input, output, session) {
         raw_df <- {if (isolate(input$choose_model) == "no_img") {
           dd |> filter(!domain %in% c('Imaging'))
         } else {
-          dd 
-        }} %>% 
-          .[indices + 1, ] %>% 
-          mutate(similarity = round(similarities, 3)) %>% 
+          dd
+        }} %>%
+          .[indices + 1, ] %>%
+          mutate(similarity = round(similarities, 3)) %>%
           mutate(across(where(is.character), ~ stringr::str_replace_all(.x, "[\r\n]+", " "))) %>%
-          relocate(similarity, name, label)
+          # Put the 8 curated columns first so both the desktop table AND
+          # the row-click modal show them in this order; other columns follow.
+          relocate(any_of(desktop_visible_cols))
         
         master_results(raw_df)
         
@@ -321,51 +391,64 @@ server <- function(input, output, session) {
   })
   
   # --- 2. FILTERING LOGIC ---
+  # Empty selection on any filter = no filter applied for that dimension
+  # (include all values). Pick one or more to narrow the results.
   filtered_data <- reactive({
     data <- master_results()
-    
     if (nrow(data) == 0) return(data)
-    
-    # Source Filter
-    if (!is.null(input$filter_source)) {
+
+    if (length(input$filter_source) > 0) {
       data <- data %>% filter(source %in% input$filter_source)
-    } else {
-      return(data[0,])
     }
-    
-    # Domain Filter
-    if ("domain" %in% names(data) && !is.null(input$filter_domain)) {
+    if ("domain" %in% names(data) && length(input$filter_domain) > 0) {
       data <- data %>% filter(domain %in% input$filter_domain)
-    } else if ("domain" %in% names(data)) {
-      return(data[0,])
     }
-    
+    if ("type_var" %in% names(data) && length(input$filter_type_var) > 0) {
+      data <- data %>% filter(type_var %in% input$filter_type_var)
+    }
+
     data
   })
-  
-  # --- 3. HELPER EVENTS ---
-  observeEvent(input$all_source, updateCheckboxGroupInput(session, "filter_source", selected = choices_source))
-  observeEvent(input$none_source, updateCheckboxGroupInput(session, "filter_source", selected = character(0)))
-  
-  observeEvent(input$all_domain, updateCheckboxGroupInput(session, "filter_domain", selected = choices_domain))
-  observeEvent(input$none_domain, updateCheckboxGroupInput(session, "filter_domain", selected = character(0)))
-  
-  # --- 4. TABLE RENDER ---
+
+
+  # --- 3. TABLE RENDER ---
   output$results_table <- reactable::renderReactable({
     req(nrow(filtered_data()) > 0)
     data <- filtered_data()
-    
+
+    # Curated desktop columns (visible by default, custom display names) +
+    # every other column with show = FALSE so it's available for the
+    # row-click modal but not rendered in the table.
+    visible_defs <- list(
+      similarity = reactable::colDef(name = "Score",         minWidth = 80),
+      name       = reactable::colDef(name = "Variable Name", minWidth = 180),
+      label      = reactable::colDef(name = "Description",   minWidth = 380),
+      domain     = reactable::colDef(name = "Domain",        minWidth = 140),
+      sub_domain = reactable::colDef(name = "Sub-Domain",    minWidth = 140),
+      source     = reactable::colDef(name = "Source",        minWidth = 120),
+      type_var   = reactable::colDef(name = "Type",          minWidth = 100),
+      type_level = reactable::colDef(name = "Type Level",    minWidth = 100)
+    )
+    hidden_defs <- setNames(
+      lapply(desktop_hidden_cols, function(.x) reactable::colDef(show = FALSE)),
+      desktop_hidden_cols
+    )
+    column_defs <- c(visible_defs[intersect(names(visible_defs), names(data))], hidden_defs)
+
     reactable::reactable(
       data,
-      elementId = "results_table", # Required for JS Download button
-      columns = list(
-        label = reactable::colDef(minWidth = 450, name = "Description"),
-        name = reactable::colDef(minWidth = 200, name = "Variable Name"),
-        similarity = reactable::colDef(minWidth = 100, name = "Score"),
-        source = reactable::colDef(minWidth = 150),
-        domain = reactable::colDef(minWidth = 150)
-      ),
+      # Note: no `elementId` — Shiny uses the output id ("results_table")
+      # as the DOM id automatically. Setting it again triggers a warning.
+      columns = column_defs,
       selection = "multiple",
+      onClick = htmlwidgets::JS(
+        "function(rowInfo, column) {",
+        "  if (!rowInfo) return;",
+        "  // Skip clicks on the selection checkbox column",
+        "  if (column && column.id && String(column.id).indexOf('selection') !== -1) return;",
+        "  Shiny.setInputValue('row_clicked_idx', rowInfo.index, {priority: 'event'});",
+        "}"
+      ),
       searchable = TRUE,
       resizable = TRUE,
       filterable = TRUE,
@@ -380,7 +463,7 @@ server <- function(input, output, session) {
     )
   })
   
-  # --- 5. DELETE ROW LOGIC ---
+  # --- 4. DELETE ROW LOGIC ---
   observeEvent(input$delete_selected_rows, {
     selected_indices <- reactable::getReactableState("results_table", "selected")
     
@@ -398,7 +481,50 @@ server <- function(input, output, session) {
     master_results(new_master)
     showNotification("Selected rows deleted.", type = "message")
   })
-  
+
+  # --- 5. ROW CLICK → DETAILS MODAL ---
+  observeEvent(input$row_clicked_idx, {
+    idx <- as.integer(input$row_clicked_idx) + 1L  # JS 0-based -> R 1-based
+    data <- filtered_data()
+    if (length(idx) != 1 || is.na(idx) || idx < 1 || idx > nrow(data)) return()
+
+    row <- data[idx, , drop = FALSE]
+    fields <- names(row)
+    values <- vapply(row, function(x) {
+      v <- as.character(x)
+      if (length(v) == 0 || is.na(v) || !nzchar(v)) "" else v
+    }, character(1))
+
+    details_tbl <- tags$table(
+      class = "table table-striped table-sm mb-0 row-details-table",
+      tags$tbody(
+        lapply(seq_along(fields), function(i) {
+          tags$tr(
+            tags$th(scope = "row", fields[i]),
+            tags$td(
+              if (nzchar(values[i])) values[i] else tags$span(class = "text-muted", "—")
+            )
+          )
+        })
+      )
+    )
+
+    title_str <- if ("name" %in% fields && nzchar(values[match("name", fields)])) {
+      paste("Variable:", values[match("name", fields)])
+    } else {
+      "Row details"
+    }
+
+    showModal(modalDialog(
+      title = title_str,
+      details_tbl,
+      size = "l",
+      easyClose = TRUE,
+      footer = modalButton("Close")
+    ))
+  })
+
+
   # --- 6. OUTPUTS ---
   output$table_counts <- renderText({
     paste("Showing", nrow(filtered_data()), "variables")
