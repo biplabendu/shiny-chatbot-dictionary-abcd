@@ -32,8 +32,9 @@ dd <- nanoparquet::read_parquet(dictionary_path) %>%
 
 # --- DATA PREP & CONFIG ---
 # 1. UI Filter Choices (from HEAD logic)
-choices_source <- unique(dd$source) %>% na.omit() %>% sort()
-choices_domain <- if("domain" %in% names(dd)) unique(dd$domain) %>% na.omit() %>% sort() else character(0)
+choices_source   <- unique(dd$source) %>% na.omit() %>% sort()
+choices_domain   <- if ("domain"   %in% names(dd)) unique(dd$domain)   %>% na.omit() %>% sort() else character(0)
+choices_type_var <- if ("type_var" %in% names(dd)) unique(dd$type_var) %>% na.omit() %>% sort() else character(0)
 
 # 2. JS Button Config (from ui branch)
 table_all_cols <- c("similarity", names(dd))
@@ -207,37 +208,43 @@ ui <- page_fillable(
                 )
               ),
               
-              # 2. Filters (HEAD - Preserved as requested)
+              # 2. Filters — searchable multi-select dropdowns.
+              # Empty selection = no filter applied (include all rows).
               h6("Filters", class = "fw-bold text-uppercase text-primary small"),
-              accordion(
-                open = c("Source", "Domain"), 
-                
-                accordion_panel(
-                  "Source",
-                  div(class = "filter-actions",
-                      actionLink("all_source", "Select All"), " | ",
-                      actionLink("none_source", "Deselect All")
-                  ),
-                  div(
-                    class = "scrollable-checkboxes",
-                    checkboxGroupInput("filter_source", label = NULL, 
-                                       choices = choices_source, 
-                                       selected = choices_source)
-                  )
-                ),
-                
-                accordion_panel(
-                  "Domain",
-                  div(class = "filter-actions",
-                      actionLink("all_domain", "Select All"), " | ",
-                      actionLink("none_domain", "Deselect All")
-                  ),
-                  div(
-                    class = "scrollable-checkboxes",
-                    checkboxGroupInput("filter_domain", label = NULL, 
-                                       choices = choices_domain, 
-                                       selected = choices_domain)
-                  )
+
+              selectizeInput(
+                "filter_source",
+                label = "Source",
+                choices = choices_source,
+                selected = NULL,
+                multiple = TRUE,
+                options = list(
+                  plugins = list("remove_button"),
+                  placeholder = "All sources (click to filter)"
+                )
+              ),
+
+              selectizeInput(
+                "filter_domain",
+                label = "Domain",
+                choices = choices_domain,
+                selected = NULL,
+                multiple = TRUE,
+                options = list(
+                  plugins = list("remove_button"),
+                  placeholder = "All domains (click to filter)"
+                )
+              ),
+
+              selectizeInput(
+                "filter_type_var",
+                label = "Variable Type",
+                choices = choices_type_var,
+                selected = NULL,
+                multiple = TRUE,
+                options = list(
+                  plugins = list("remove_button"),
+                  placeholder = "All types (click to filter)"
                 )
               )
             ),
@@ -361,36 +368,27 @@ server <- function(input, output, session) {
   })
   
   # --- 2. FILTERING LOGIC ---
+  # Empty selection on any filter = no filter applied for that dimension
+  # (include all values). Pick one or more to narrow the results.
   filtered_data <- reactive({
     data <- master_results()
-    
     if (nrow(data) == 0) return(data)
-    
-    # Source Filter
-    if (!is.null(input$filter_source)) {
+
+    if (length(input$filter_source) > 0) {
       data <- data %>% filter(source %in% input$filter_source)
-    } else {
-      return(data[0,])
     }
-    
-    # Domain Filter
-    if ("domain" %in% names(data) && !is.null(input$filter_domain)) {
+    if ("domain" %in% names(data) && length(input$filter_domain) > 0) {
       data <- data %>% filter(domain %in% input$filter_domain)
-    } else if ("domain" %in% names(data)) {
-      return(data[0,])
     }
-    
+    if ("type_var" %in% names(data) && length(input$filter_type_var) > 0) {
+      data <- data %>% filter(type_var %in% input$filter_type_var)
+    }
+
     data
   })
-  
-  # --- 3. HELPER EVENTS ---
-  observeEvent(input$all_source, updateCheckboxGroupInput(session, "filter_source", selected = choices_source))
-  observeEvent(input$none_source, updateCheckboxGroupInput(session, "filter_source", selected = character(0)))
-  
-  observeEvent(input$all_domain, updateCheckboxGroupInput(session, "filter_domain", selected = choices_domain))
-  observeEvent(input$none_domain, updateCheckboxGroupInput(session, "filter_domain", selected = character(0)))
-  
-  # --- 4. TABLE RENDER ---
+
+
+  # --- 3. TABLE RENDER ---
   output$results_table <- reactable::renderReactable({
     req(nrow(filtered_data()) > 0)
     data <- filtered_data()
@@ -429,7 +427,7 @@ server <- function(input, output, session) {
     )
   })
   
-  # --- 5. DELETE ROW LOGIC ---
+  # --- 4. DELETE ROW LOGIC ---
   observeEvent(input$delete_selected_rows, {
     selected_indices <- reactable::getReactableState("results_table", "selected")
     
@@ -448,7 +446,7 @@ server <- function(input, output, session) {
     showNotification("Selected rows deleted.", type = "message")
   })
 
-  # --- 5b. ROW CLICK → DETAILS MODAL ---
+  # --- 5. ROW CLICK → DETAILS MODAL ---
   observeEvent(input$row_clicked_idx, {
     idx <- as.integer(input$row_clicked_idx) + 1L  # JS 0-based -> R 1-based
     data <- filtered_data()

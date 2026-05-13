@@ -87,6 +87,24 @@
   cursor: pointer;
 }
 
+/* Selectize multi-select tags (filter dropdowns) — brand burgundy chips */
+.selectize-input .item {
+  background: var(--bs-primary, #62272D) !important;
+  color: #fff !important;
+  border-color: var(--bs-primary, #62272D) !important;
+}
+.selectize-input .item .remove {
+  color: #fff !important;
+  border-left-color: rgba(255, 255, 255, 0.35) !important;
+}
+.selectize-input .item .remove:hover {
+  background: rgba(255, 255, 255, 0.15) !important;
+}
+.selectize-dropdown .active {
+  background: var(--bs-info, #DEEBF7) !important;
+  color: var(--bs-primary, #62272D) !important;
+}
+
 /* Row-details modal */
 .modal-header {
   border-bottom-width: 2px;
