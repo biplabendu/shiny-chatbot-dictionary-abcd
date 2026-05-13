@@ -4,13 +4,27 @@
 .RData
 .Ruserdata
 
-# Python virtual environment
+# Python virtual environment + build cache
 python_env/
+python/__pycache__/
 
-# Pre-computed embeddings (generated automatically on first search run)
+# Sanity-check scripts and intermediate experiments. Excluded from the deploy
+# bundle via .rscignore too.
+sanity-chks/
+
+# Legacy embedding caches (pre-ONNX). data/embeddings/ and python/model/
+# are now part of the deploy bundle — see python/build_embeddings.py.
 data/local_embeddings/
-data/embeddings/
 python/local_embeddings/
+
+# Raw source CSVs — build inputs only. The deployed app uses the .parquet
+# (R UI) and the .npy/.npz artifacts (Python backend) in data/embeddings/.
+# Re-supply these locally (and re-run setup.sh) when you need to rebuild.
+data/dd-abcd-6_0.csv
+data/dd-abcd-6_0_minimal.csv
+data/dd-abcd-6_0_minimal_noimag.csv
+dd-abcd-6_0_minimal_noimag.csv
+dd-abcd-6_0_minimal_noimag-dummy.csv
 
 # macOS
 **/*.DS_Store

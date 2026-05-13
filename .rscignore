@@ -1,0 +1,25 @@
+# Files/directories excluded from the shinyapps.io deploy bundle.
+#
+# IMPORTANT: rsconnect matches lines with EXACT string comparison against the
+# immediate contents of each directory. No globs, no trailing slashes, no
+# nested paths. To exclude files inside a subdirectory, put another
+# .rscignore there (see data/.rscignore).
+
+# Sanity-check scripts and other dev-only tooling.
+sanity-chks
+.claude
+.dockerignore
+Dockerfile
+fly.toml
+clean_embeddings_pythonpkgs.sh
+setup.sh
+run.sh
+deploy.sh
+shiny-chatbot-dictionary-abcd.Rproj
+
+# Local R session state — rsconnect's hardcoded list covers .Rhistory but not .RData.
+.RData
+
+# Root-level duplicate CSVs (build inputs only).
+dd-abcd-6_0_minimal_noimag.csv
+dd-abcd-6_0_minimal_noimag-dummy.csv

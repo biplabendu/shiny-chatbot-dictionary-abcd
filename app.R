@@ -1,41 +1,33 @@
 library(shiny)
 library(dplyr)
-library(readr)
 library(stringr)
 library(reticulate)
 library(reactable)
 library(bslib)
 library(fontawesome)
+library(nanoparquet)
 
 # --- ENVIRONMENT CONFIG ---
-# use_python("/usr/bin/python3.10", required = TRUE)
 options(shiny.autoreload = TRUE)
 
 # --- FILE SETUP ---
-# Update this to your ACTUAL file name (accepted from ui branch)
-csv_filename <- "data/dd-abcd-6_0.csv" 
-
-if (!file.exists(csv_filename)) {
-  # Fallback for testing if the user hasn't renamed the file yet
-  if (file.exists("dd-abcd-6_0_minimal_noimag-dummy.csv")) {
-    csv_filename <- "dd-abcd-6_0_minimal_noimag-dummy.csv"
-  } else {
-    stop(paste("CRITICAL ERROR: Could not find", csv_filename))
-  }
+dictionary_path <- "data/dd-abcd-6_0.parquet"
+if (!file.exists(dictionary_path)) {
+  stop(paste("Missing", dictionary_path,
+             "- run ./setup.sh to build artifacts."))
 }
 
-# Get Absolute Path and Initialize
-abs_path <- tools::file_path_as_absolute(csv_filename)
-# Source python script
+# Python deps for reticulate's auto-installer (uv-based). On shinyapps.io,
+# reticulate downloads a pre-built CPython + these packages on first run.
+# Locally, .Rprofile points RETICULATE_PYTHON at python_env/ and py_require
+# is a no-op.
+reticulate::py_require(readLines("requirements.txt"))
+
 source_python("python/backend.py")
-# Initialize backend
-# initialize_backend(abs_path) 
 
 # Load dictionary for R-side lookups and filter population
-dd <- readr::read_csv(
-  csv_filename,
-  col_types = readr::cols(.default = readr::col_character())
-)
+dd <- nanoparquet::read_parquet(dictionary_path) %>%
+  dplyr::mutate(dplyr::across(dplyr::everything(), as.character))
 
 # --- DATA PREP & CONFIG ---
 # 1. UI Filter Choices (from HEAD logic)
@@ -267,27 +259,6 @@ server <- function(input, output, session) {
   observeEvent(input$run_search, {
     req(input$search_query)
 
-
- # Show persistent notification if embeddings don't yet exist for selected model.
- # The Sys.sleep below flushes it to the browser before the blocking Python call.
- emb_file <- if (isolate(input$choose_model) == "no_img") {
-   "data/local_embeddings/embeddings_all-MiniLM-L6-v2_noimag.npy"
- } else {
-   "data/local_embeddings/embeddings_all-MiniLM-L6-v2.npy"
- }
- emb_notif_id <- if (!file.exists(emb_file)) {
-   showNotification(
-     ui = tagList(
-       tags$strong("Building embeddings for the first time."),
-            "This may take several minutes — please wait."
-          ),
-          duration = NULL,
-          type = "message",
-          closeButton = FALSE
-        )                                                                                                                                               
-      } else {
-        NULL
-      }
     # Show a modal, wait 1 second, then remove it
     showModal(modalDialog(
       title = NULL,
@@ -303,7 +274,6 @@ server <- function(input, output, session) {
     updateActionButton(session, "run_search", label = "Searching...", icon = icon("spinner", class = "fa-spin"))
     on.exit({
       updateActionButton(session, "run_search", label = "Search Variables", icon = icon("magnifying-glass"))
-      if (!is.null(emb_notif_id)) removeNotification(emb_notif_id)
     })
     
     tryCatch({
