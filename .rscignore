@@ -1,0 +1,32 @@
+# Files excluded from the shinyapps.io deploy bundle (rsconnect respects this).
+sanity-chks/
+python/__pycache__/
+python_env/
+renv/library/
+renv/staging/
+.Rproj.user/
+.Rhistory
+.RData
+.DS_Store
+**/.DS_Store
+
+# Build-time CSVs — Python uses pre-baked .npy + .npz at runtime, not these.
+# The R UI reads data/dd-abcd-6_0.parquet instead of the raw CSV.
+data/dd-abcd-6_0.csv
+data/dd-abcd-6_0_minimal.csv
+data/dd-abcd-6_0_minimal_noimag.csv
+dd-abcd-6_0_minimal_noimag-dummy.csv
+
+# Legacy embeddings produced by the old sentence-transformers backend.
+data/local_embeddings/
+python/local_embeddings/
+
+# Dev-only files unrelated to the Shiny app runtime.
+Dockerfile
+.dockerignore
+fly.toml
+.github/
+clean_embeddings_pythonpkgs.sh
+setup.sh
+run.sh
+*.Rproj

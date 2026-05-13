@@ -1,41 +1,40 @@
 library(shiny)
 library(dplyr)
-library(readr)
 library(stringr)
 library(reticulate)
 library(reactable)
 library(bslib)
 library(fontawesome)
+library(nanoparquet)
 
 # --- ENVIRONMENT CONFIG ---
-# use_python("/usr/bin/python3.10", required = TRUE)
 options(shiny.autoreload = TRUE)
 
 # --- FILE SETUP ---
-# Update this to your ACTUAL file name (accepted from ui branch)
-csv_filename <- "data/dd-abcd-6_0.csv" 
-
-if (!file.exists(csv_filename)) {
-  # Fallback for testing if the user hasn't renamed the file yet
-  if (file.exists("dd-abcd-6_0_minimal_noimag-dummy.csv")) {
-    csv_filename <- "dd-abcd-6_0_minimal_noimag-dummy.csv"
-  } else {
-    stop(paste("CRITICAL ERROR: Could not find", csv_filename))
-  }
+dictionary_path <- "data/dd-abcd-6_0.parquet"
+if (!file.exists(dictionary_path)) {
+  stop(paste("Missing", dictionary_path,
+             "- run ./setup.sh to build artifacts."))
 }
 
-# Get Absolute Path and Initialize
-abs_path <- tools::file_path_as_absolute(csv_filename)
+# On shinyapps.io, build the Python virtualenv on first launch (cached on
+# subsequent boots of the same instance). Locally we use python_env/ via .Rprofile.
+if (Sys.info()[["user"]] == "shiny") {
+  venv <- Sys.getenv("VIRTUALENV_NAME")
+  reticulate::virtualenv_create(envname = venv,
+                                python  = Sys.getenv("PYTHON_PATH"))
+  reticulate::virtualenv_install(venv,
+                                 packages = readLines("requirements.txt"),
+                                 ignore_installed = TRUE)
+  reticulate::use_virtualenv(venv, required = TRUE)
+}
+
 # Source python script
 source_python("python/backend.py")
-# Initialize backend
-# initialize_backend(abs_path) 
 
 # Load dictionary for R-side lookups and filter population
-dd <- readr::read_csv(
-  csv_filename,
-  col_types = readr::cols(.default = readr::col_character())
-)
+dd <- nanoparquet::read_parquet(dictionary_path) %>%
+  dplyr::mutate(dplyr::across(dplyr::everything(), as.character))
 
 # --- DATA PREP & CONFIG ---
 # 1. UI Filter Choices (from HEAD logic)

@@ -4,12 +4,17 @@
 .RData
 .Ruserdata
 
-# Python virtual environment
+# Python virtual environment + build cache
 python_env/
+python/__pycache__/
 
-# Pre-computed embeddings (generated automatically on first search run)
+# Sanity-check scripts and intermediate experiments. Excluded from the deploy
+# bundle via .rscignore too.
+sanity-chks/
+
+# Legacy embedding caches (pre-ONNX). data/embeddings/ and python/model/
+# are now part of the deploy bundle — see python/build_embeddings.py.
 data/local_embeddings/
-data/embeddings/
 python/local_embeddings/
 
 # macOS
