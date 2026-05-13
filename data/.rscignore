@@ -1,0 +1,6 @@
+# Raw CSVs are build-time inputs to python/build_embeddings.py.
+# The deployed app uses data/dd-abcd-6_0.parquet (R UI) and the .npy/.npz
+# artifacts in data/embeddings/ (Python backend) instead.
+dd-abcd-6_0.csv
+dd-abcd-6_0_minimal.csv
+dd-abcd-6_0_minimal_noimag.csv

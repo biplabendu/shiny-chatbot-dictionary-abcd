@@ -1,32 +1,25 @@
-# Files excluded from the shinyapps.io deploy bundle (rsconnect respects this).
-sanity-chks/
-python/__pycache__/
-python_env/
-renv/library/
-renv/staging/
-.Rproj.user/
-.Rhistory
-.RData
-.DS_Store
-**/.DS_Store
+# Files/directories excluded from the shinyapps.io deploy bundle.
+#
+# IMPORTANT: rsconnect matches lines with EXACT string comparison against the
+# immediate contents of each directory. No globs, no trailing slashes, no
+# nested paths. To exclude files inside a subdirectory, put another
+# .rscignore there (see data/.rscignore).
 
-# Build-time CSVs — Python uses pre-baked .npy + .npz at runtime, not these.
-# The R UI reads data/dd-abcd-6_0.parquet instead of the raw CSV.
-data/dd-abcd-6_0.csv
-data/dd-abcd-6_0_minimal.csv
-data/dd-abcd-6_0_minimal_noimag.csv
-dd-abcd-6_0_minimal_noimag-dummy.csv
-
-# Legacy embeddings produced by the old sentence-transformers backend.
-data/local_embeddings/
-python/local_embeddings/
-
-# Dev-only files unrelated to the Shiny app runtime.
-Dockerfile
+# Sanity-check scripts and other dev-only tooling.
+sanity-chks
+.claude
 .dockerignore
+Dockerfile
 fly.toml
-.github/
 clean_embeddings_pythonpkgs.sh
 setup.sh
 run.sh
-*.Rproj
+deploy.sh
+shiny-chatbot-dictionary-abcd.Rproj
+
+# Local R session state — rsconnect's hardcoded list covers .Rhistory but not .RData.
+.RData
+
+# Root-level duplicate CSVs (build inputs only).
+dd-abcd-6_0_minimal_noimag.csv
+dd-abcd-6_0_minimal_noimag-dummy.csv

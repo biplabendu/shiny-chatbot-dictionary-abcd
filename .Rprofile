@@ -1,21 +1,17 @@
-if (!requireNamespace("renv", quietly = TRUE)) {
-  install.packages("renv")
+# rsconnect excludes renv/ from the deploy bundle (its own hardcoded rule),
+# so on shinyapps.io there is no activate.R to source. Skip silently there
+# and let shinyapps.io's own renv.lock-driven install do the work.
+if (file.exists("renv/activate.R")) {
+  if (!requireNamespace("renv", quietly = TRUE)) {
+    install.packages("renv")
+  }
+  source("renv/activate.R")
 }
 
-source("renv/activate.R")
 
-
-VIRTUALENV_NAME <- "abcd_dictionary_env"
-
-if (Sys.info()[["user"]] == "shiny") {
-  # shinyapps.io: build a runtime virtualenv at /home/shiny/.virtualenvs/<name>/
-  # The actual virtualenv_create/install happens in app.R before source_python().
-  Sys.setenv(PYTHON_PATH       = "python3")
-  Sys.setenv(VIRTUALENV_NAME   = VIRTUALENV_NAME)
-  Sys.setenv(RETICULATE_PYTHON = paste0("/home/shiny/.virtualenvs/",
-                                        VIRTUALENV_NAME, "/bin/python"))
-} else if (dir.exists("python_env")) {
-  # Local dev: point at the in-repo venv.
+# Local dev: point reticulate at python_env/. On shinyapps.io, Connect's
+# manifest-based provisioning sets RETICULATE_PYTHON itself, so we skip this.
+if (Sys.info()[["user"]] != "shiny" && dir.exists("python_env")) {
   if (Sys.info()[["sysname"]] != "Windows") {
     Sys.setenv(RETICULATE_PYTHON = file.path(getwd(), "python_env", "bin", "python"))
   } else {

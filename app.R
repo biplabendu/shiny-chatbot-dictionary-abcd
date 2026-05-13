@@ -17,19 +17,12 @@ if (!file.exists(dictionary_path)) {
              "- run ./setup.sh to build artifacts."))
 }
 
-# On shinyapps.io, build the Python virtualenv on first launch (cached on
-# subsequent boots of the same instance). Locally we use python_env/ via .Rprofile.
-if (Sys.info()[["user"]] == "shiny") {
-  venv <- Sys.getenv("VIRTUALENV_NAME")
-  reticulate::virtualenv_create(envname = venv,
-                                python  = Sys.getenv("PYTHON_PATH"))
-  reticulate::virtualenv_install(venv,
-                                 packages = readLines("requirements.txt"),
-                                 ignore_installed = TRUE)
-  reticulate::use_virtualenv(venv, required = TRUE)
-}
+# Python deps for reticulate's auto-installer (uv-based). On shinyapps.io,
+# reticulate downloads a pre-built CPython + these packages on first run.
+# Locally, .Rprofile points RETICULATE_PYTHON at python_env/ and py_require
+# is a no-op.
+reticulate::py_require(readLines("requirements.txt"))
 
-# Source python script
 source_python("python/backend.py")
 
 # Load dictionary for R-side lookups and filter population
@@ -266,27 +259,6 @@ server <- function(input, output, session) {
   observeEvent(input$run_search, {
     req(input$search_query)
 
-
- # Show persistent notification if embeddings don't yet exist for selected model.
- # The Sys.sleep below flushes it to the browser before the blocking Python call.
- emb_file <- if (isolate(input$choose_model) == "no_img") {
-   "data/local_embeddings/embeddings_all-MiniLM-L6-v2_noimag.npy"
- } else {
-   "data/local_embeddings/embeddings_all-MiniLM-L6-v2.npy"
- }
- emb_notif_id <- if (!file.exists(emb_file)) {
-   showNotification(
-     ui = tagList(
-       tags$strong("Building embeddings for the first time."),
-            "This may take several minutes — please wait."
-          ),
-          duration = NULL,
-          type = "message",
-          closeButton = FALSE
-        )                                                                                                                                               
-      } else {
-        NULL
-      }
     # Show a modal, wait 1 second, then remove it
     showModal(modalDialog(
       title = NULL,
@@ -302,7 +274,6 @@ server <- function(input, output, session) {
     updateActionButton(session, "run_search", label = "Searching...", icon = icon("spinner", class = "fa-spin"))
     on.exit({
       updateActionButton(session, "run_search", label = "Search Variables", icon = icon("magnifying-glass"))
-      if (!is.null(emb_notif_id)) removeNotification(emb_notif_id)
     })
     
     tryCatch({
