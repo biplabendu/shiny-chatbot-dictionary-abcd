@@ -39,6 +39,10 @@ table_all_cols <- c("similarity", names(dd))
 table_hidden_cols <- setdiff(table_all_cols, "name")
 table_hidden_cols_json <- jsonlite::toJSON(table_hidden_cols, auto_unbox = TRUE)
 
+# Mobile view: hide every column except name + label (description)
+mobile_hidden_cols <- setdiff(table_all_cols, c("name", "label"))
+mobile_hidden_cols_json <- jsonlite::toJSON(mobile_hidden_cols, auto_unbox = TRUE)
+
 # 3. Domain Logic (from ui branch)
 domain_all <- c(
   'ABCD (General)','COVID-19','Endocannabinoid',
@@ -57,7 +61,7 @@ ui <- page_fillable(
       .form-group { margin-bottom: 15px; }
       .no-gap { gap: 0 !important; }
       .scrollable-checkboxes {
-        max_height: 200px;
+        max-height: 200px;
         overflow-y: auto;
         padding: 5px;
         border: 1px solid #e9ecef;
@@ -65,15 +69,172 @@ ui <- page_fillable(
         background-color: #f8f9fa;
       }
       .filter-actions { font-size: 0.8rem; margin-bottom: 5px; }
+
+      @media (max-width: 768px) {
+
+        /* 1. Allow the page to scroll vertically on mobile
+              (page_fillable locks overflow:hidden by default) */
+        html, body {
+          overflow: auto !important;
+          height: auto !important;
+        }
+        .bslib-page-fill {
+          height: auto !important;
+          min-height: 100vh !important;
+          overflow: visible !important;
+        }
+
+        /* 2. Let the outer layout and card grow with content */
+        .bslib-sidebar-layout:not(.no-gap),
+        .bslib-sidebar-layout:not(.no-gap) > [role='main'] {
+          height: auto !important;
+          overflow: visible !important;
+        }
+        .card:has(.bslib-sidebar-layout.no-gap) {
+          height: auto !important;
+          min-height: 0 !important;
+          overflow: visible !important;
+        }
+
+        /* 3. Switch the inner (right-sidebar) layout from CSS grid to flex column
+              so the table sits on TOP and the filter panel stacks BELOW */
+        .bslib-sidebar-layout.no-gap,
+        .bslib-sidebar-layout.sidebar-right.no-gap {
+          display: flex !important;
+          flex-direction: column !important;
+          height: auto !important;
+          min-height: 0 !important;
+          overflow: visible !important;
+        }
+
+        /* 4. Table area: full width, fixed scrollable height */
+        .bslib-sidebar-layout.no-gap > [role='main'],
+        .bslib-sidebar-layout.no-gap > .bslib-main {
+          order: 1 !important;
+          width: 100% !important;
+          height: 55vh !important;
+          min-height: 200px !important;
+          overflow: auto !important;
+          grid-column: unset !important;
+        }
+
+        /* 5. Right sidebar: full width, stacked below, always visible */
+        .bslib-sidebar-layout.no-gap > aside,
+        .bslib-sidebar-layout.no-gap > .bslib-sidebar {
+          display: block !important;   /* override any bslib-injected display:none */
+          order: 2 !important;
+          width: 100% !important;
+          max-width: 100% !important;
+          height: auto !important;
+          max-height: none !important;
+          overflow-y: auto !important;
+          border-left: none !important;
+          border-top: 1px solid #dee2e6 !important;
+          grid-column: unset !important;
+        }
+
+        /* 6. Keep the bslib collapse toggle visible on mobile so users can
+              re-open the right filter panel after it auto-hides on search. */
+        .no-gap .collapse-toggle {
+          display: flex !important;
+          z-index: 5;
+        }
+
+        /* 7. Cap the reactable so it doesn't overflow its container */
+        #results_table {
+          height: 55vh !important;
+        }
+
+        /* 8. Compact, mobile-friendly table cells */
+        #results_table .rt-td,
+        #results_table .rt-th {
+          padding: 4px 6px !important;
+          font-size: 0.8rem !important;
+          line-height: 1.25 !important;
+        }
+        #results_table .rt-td {
+          white-space: normal !important;
+          word-break: break-word !important;
+        }
+        /* Hide pagination summary text — keep the page buttons */
+        #results_table .rt-page-info,
+        #results_table .rt-page-size {
+          display: none !important;
+        }
+        /* Tighten the global search box */
+        #results_table .rt-search {
+          font-size: 0.85rem !important;
+          margin-bottom: 4px !important;
+        }
+
+        /* 9. When bslib marks the right sidebar closed, fully hide it
+              (our flex-column override would otherwise keep it visible). */
+        .bslib-sidebar-layout.no-gap[data-bslib-sidebar-open='closed'] > aside,
+        .bslib-sidebar-layout.no-gap[data-bslib-sidebar-open='closed'] > .bslib-sidebar,
+        .bslib-sidebar-layout.no-gap > .bslib-sidebar[aria-hidden='true'],
+        .bslib-sidebar-layout.no-gap > aside[aria-hidden='true'] {
+          display: none !important;
+        }
+        /* And when closed, let the table area take all available height */
+        .bslib-sidebar-layout.no-gap[data-bslib-sidebar-open='closed'] > [role='main'],
+        .bslib-sidebar-layout.no-gap[data-bslib-sidebar-open='closed'] > .bslib-main {
+          height: auto !important;
+          min-height: 70vh !important;
+        }
+
+        /* 10. Make the row-details modal fit narrow screens */
+        .modal-dialog,
+        .modal-dialog.modal-lg {
+          margin: 0.5rem !important;
+          max-width: calc(100% - 1rem) !important;
+        }
+        .modal-body { padding: 0.75rem !important; }
+      }
+
+      /* Row-details modal table: wrap long values, full width */
+      .row-details-table { table-layout: fixed; width: 100%; }
+      .row-details-table th,
+      .row-details-table td {
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        white-space: normal;
+        vertical-align: top;
+      }
+      .row-details-table th { width: 30%; }
+
+      /* Visual cue that rows are clickable */
+      #results_table .rt-tr:not(.rt-tr-header):not(.rt-tr-filter) { cursor: pointer; }
     ")),
-    tags$script(HTML("
+    tags$script(HTML(paste0("
       $(document).on('keydown', '#search_query', function(e) {
         if (e.key === 'Enter' && !e.shiftKey) {
           e.preventDefault();
           $('#run_search').click();
         }
       });
-    "))
+
+      // Report viewport width to Shiny so the server can branch on mobile.
+      function _reportWidth() {
+        if (window.Shiny && Shiny.setInputValue) {
+          Shiny.setInputValue('window_width', window.innerWidth, {priority: 'event'});
+        }
+      }
+      $(document).on('shiny:connected', _reportWidth);
+      $(window).on('resize', _reportWidth);
+
+      // After the results table renders on mobile, hide all columns
+      // except `name` and `label` to keep the view minimal.
+      var MOBILE_HIDDEN = ", mobile_hidden_cols_json, ";
+      $(document).on('shiny:value', function(event) {
+        if (event.name !== 'results_table') return;
+        if (!window.matchMedia('(max-width: 768px)').matches) return;
+        setTimeout(function() {
+          try { Reactable.setHiddenColumns('results_table', MOBILE_HIDDEN); }
+          catch (e) { /* table not ready yet */ }
+        }, 200);
+      });
+
+    ")))
   ),
   
   title = "ABCD Semantic Search",
@@ -83,11 +244,13 @@ ui <- page_fillable(
     class = "bg-primary text-white p-3 rounded-2 mb-2",
     h2("ABCD Data Dictionary Semantic Search", class = "m-0")
   ),
-  
+
   layout_sidebar(
     
     # --- LEFT SIDEBAR (Search Inputs) ---
     sidebar = sidebar(
+      id = "left_sidebar",
+      open = "open",
       width = 320,
       card_header("Search Parameters"),
       
@@ -137,8 +300,9 @@ ui <- page_fillable(
             
             # --- RIGHT SIDEBAR (Filters & Actions) ---
             sidebar = sidebar(
+              id = "right_sidebar",
               position = "right",
-              open = "open", 
+              open = "open",
               width = 350,
               card_header("Refine Results"),
               
@@ -259,6 +423,14 @@ server <- function(input, output, session) {
   observeEvent(input$run_search, {
     req(input$search_query)
 
+    # On mobile, auto-collapse BOTH sidebars so the table fills the screen.
+    # The bslib collapse-toggle (small arrow on each sidebar's edge) lets
+    # users re-open either panel.
+    if (isTRUE(isolate(input$window_width) <= 768)) {
+      bslib::sidebar_toggle("left_sidebar",  open = FALSE, session = session)
+      bslib::sidebar_toggle("right_sidebar", open = FALSE, session = session)
+    }
+
     # Show a modal, wait 1 second, then remove it
     showModal(modalDialog(
       title = NULL,
@@ -366,6 +538,14 @@ server <- function(input, output, session) {
         domain = reactable::colDef(minWidth = 150)
       ),
       selection = "multiple",
+      onClick = htmlwidgets::JS(
+        "function(rowInfo, column) {",
+        "  if (!rowInfo) return;",
+        "  // Skip clicks on the selection checkbox column",
+        "  if (column && column.id && String(column.id).indexOf('selection') !== -1) return;",
+        "  Shiny.setInputValue('row_clicked_idx', rowInfo.index, {priority: 'event'});",
+        "}"
+      ),
       searchable = TRUE,
       resizable = TRUE,
       filterable = TRUE,
@@ -398,7 +578,50 @@ server <- function(input, output, session) {
     master_results(new_master)
     showNotification("Selected rows deleted.", type = "message")
   })
-  
+
+  # --- 5b. ROW CLICK → DETAILS MODAL ---
+  observeEvent(input$row_clicked_idx, {
+    idx <- as.integer(input$row_clicked_idx) + 1L  # JS 0-based -> R 1-based
+    data <- filtered_data()
+    if (length(idx) != 1 || is.na(idx) || idx < 1 || idx > nrow(data)) return()
+
+    row <- data[idx, , drop = FALSE]
+    fields <- names(row)
+    values <- vapply(row, function(x) {
+      v <- as.character(x)
+      if (length(v) == 0 || is.na(v) || !nzchar(v)) "" else v
+    }, character(1))
+
+    details_tbl <- tags$table(
+      class = "table table-striped table-sm mb-0 row-details-table",
+      tags$tbody(
+        lapply(seq_along(fields), function(i) {
+          tags$tr(
+            tags$th(scope = "row", fields[i]),
+            tags$td(
+              if (nzchar(values[i])) values[i] else tags$span(class = "text-muted", "—")
+            )
+          )
+        })
+      )
+    )
+
+    title_str <- if ("name" %in% fields && nzchar(values[match("name", fields)])) {
+      paste("Variable:", values[match("name", fields)])
+    } else {
+      "Row details"
+    }
+
+    showModal(modalDialog(
+      title = title_str,
+      details_tbl,
+      size = "l",
+      easyClose = TRUE,
+      footer = modalButton("Close")
+    ))
+  })
+
+
   # --- 6. OUTPUTS ---
   output$table_counts <- renderText({
     paste("Showing", nrow(filtered_data()), "variables")
