@@ -17,6 +17,11 @@ run.sh
 deploy.sh
 shiny-chatbot-dictionary-abcd.Rproj
 
+# Documentation site (deployed to GitHub Pages, not shinyapps.io).
+docs
+mkdocs.yml
+site
+
 # Local R session state — rsconnect's hardcoded list covers .Rhistory but not .RData.
 .RData
 

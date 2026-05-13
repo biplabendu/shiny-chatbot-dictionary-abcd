@@ -1,0 +1,51 @@
+site_name: ABCD Dictionary Search
+site_description: Semantic search over the ABCD study data dictionary. R Shiny + ONNX MiniLM.
+site_url: https://biplabendu.github.io/shiny-chatbot-dictionary-abcd/
+repo_url: https://github.com/biplabendu/shiny-chatbot-dictionary-abcd
+repo_name: biplabendu/shiny-chatbot-dictionary-abcd
+
+theme:
+  name: readthedocs
+  highlightjs: true
+  navigation_depth: 3
+  sticky_navigation: true
+  prev_next_buttons_location: bottom
+
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js
+  - javascripts/mermaid-init.js
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Home: index.md
+  - Using the app: using-the-app.md
+  - How it works: how-it-works.md
+  - Local development: local-development.md
+  - Deployment: deployment.md
+  - Troubleshooting: troubleshooting.md
+  - Reference: reference.md

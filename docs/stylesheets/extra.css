@@ -1,0 +1,192 @@
+/*
+ * Brand styling for the ReadTheDocs mkdocs theme.
+ * Translated from beepboopstats/assets/css/styles.scss (Quarto/Bootstrap origin).
+ *
+ *   primary   #62272D  burgundy        — navbar, sidebar, links
+ *   secondary #FDBF6F  warm orange     — hover / active states
+ *   info      #DEEBF7  pale blue       — note admonitions
+ *   warning   #FF7F00  orange          — warning admonitions
+ *   danger    #E31A1C  red             — danger admonitions
+ *   success   #33A02C  green           — success admonitions
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Source+Code+Pro:wght@400;700&display=swap');
+
+:root {
+  --brand-primary:   #62272D;
+  --brand-secondary: #FDBF6F;
+  --brand-info:      #DEEBF7;
+  --brand-warning:   #FF7F00;
+  --brand-danger:    #E31A1C;
+  --brand-success:   #33A02C;
+}
+
+/* ----- Typography ----- */
+body,
+.wy-side-nav-search > div.version,
+.wy-menu-vertical {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+}
+
+code,
+pre,
+kbd,
+samp,
+.rst-content tt,
+.rst-content .codehilite,
+.rst-content code {
+  font-family: 'Source Code Pro', 'Menlo', 'Consolas', monospace !important;
+}
+
+.rst-content code,
+.rst-content tt,
+.rst-content pre {
+  font-size: 0.9rem !important;
+}
+
+/* ----- Sidebar + search ----- */
+.wy-nav-side {
+  background: var(--brand-primary) !important;
+}
+
+.wy-side-nav-search,
+.wy-side-nav-search > a,
+.wy-side-nav-search .wy-dropdown > a {
+  background-color: var(--brand-primary) !important;
+  color: #fff !important;
+}
+
+.wy-side-nav-search input[type="text"] {
+  border-color: var(--brand-secondary) !important;
+}
+
+.wy-menu-vertical a {
+  color: #f4f4f4;
+}
+
+.wy-menu-vertical a:hover {
+  background-color: var(--brand-secondary) !important;
+  color: #000 !important;
+}
+
+.wy-menu-vertical li.current > a,
+.wy-menu-vertical li.toctree-l1.current > a,
+.wy-menu-vertical li.toctree-l3.current > a {
+  background: var(--brand-secondary) !important;
+  color: #000 !important;
+  border: none;
+}
+
+/* h2 entries in the left TOC (rendered as toctree-l2 inside the current page):
+   grey background, black text. Hover/current darken the grey slightly. */
+.wy-menu-vertical li.toctree-l1.current li.toctree-l2 > a,
+.wy-menu-vertical li.toctree-l2 > a {
+  background: #d6d6d6 !important;
+  color: #000 !important;
+}
+
+.wy-menu-vertical li.toctree-l1.current li.toctree-l2 > a:hover,
+.wy-menu-vertical li.toctree-l2 > a:hover {
+  background: #c0c0c0 !important;
+  color: #000 !important;
+}
+
+.wy-menu-vertical li.toctree-l2.current > a,
+.wy-menu-vertical li.toctree-l1.current li.toctree-l2.current > a {
+  background: #bcbcbc !important;
+  color: #000 !important;
+  border-left: 3px solid var(--brand-primary);
+}
+
+/* h3 entries nested under a current l2: keep the darker translucent style for
+   contrast against the grey l2 banner above them. */
+.wy-menu-vertical li.toctree-l2.current li.toctree-l3 > a {
+  background: rgba(0, 0, 0, 0.15) !important;
+  color: #fff !important;
+}
+
+/* ----- Mobile top navbar ----- */
+.wy-nav-top {
+  background: var(--brand-primary) !important;
+}
+
+.wy-nav-top a {
+  color: #fff !important;
+}
+
+/* ----- Content links ----- */
+.rst-content a,
+.rst-content a:visited {
+  color: var(--brand-primary);
+}
+
+.rst-content a:hover {
+  color: var(--brand-secondary);
+  text-decoration: underline;
+}
+
+/* ----- Prev / next buttons ----- */
+.rst-content .btn,
+.rst-content .btn-neutral {
+  background-color: var(--brand-primary) !important;
+  border-color: var(--brand-primary) !important;
+  color: #fff !important;
+}
+
+.rst-content .btn:hover,
+.rst-content .btn-neutral:hover {
+  background-color: var(--brand-secondary) !important;
+  border-color: var(--brand-secondary) !important;
+  color: #000 !important;
+}
+
+/* ----- Admonitions ----- */
+.rst-content .admonition-title {
+  background: var(--brand-primary) !important;
+}
+
+.rst-content .admonition.note > .admonition-title,
+.rst-content .admonition.info > .admonition-title {
+  background: var(--brand-primary) !important;
+}
+
+.rst-content .admonition.warning > .admonition-title {
+  background: var(--brand-warning) !important;
+  color: #000 !important;
+}
+
+.rst-content .admonition.danger > .admonition-title,
+.rst-content .admonition.error > .admonition-title {
+  background: var(--brand-danger) !important;
+}
+
+.rst-content .admonition.success > .admonition-title,
+.rst-content .admonition.tip > .admonition-title {
+  background: var(--brand-success) !important;
+}
+
+/* ----- Tables ----- */
+.rst-content table.docutils thead,
+.rst-content table.field-list thead,
+.rst-content table thead {
+  background: var(--brand-info);
+}
+
+/* ----- Inline code on links ----- */
+.rst-content a code,
+.rst-content a:visited code {
+  color: var(--brand-primary) !important;
+}
+
+/* ----- Mermaid diagrams ----- */
+/* pymdownx.superfences renders mermaid blocks as <pre class="mermaid">.
+   Drop the RTD theme's pre-block styling so the SVG sits on a clean canvas. */
+.rst-content pre.mermaid {
+  background: none !important;
+  border: none !important;
+  padding: 0 !important;
+  text-align: center;
+  margin: 1.25em 0;
+  white-space: normal;
+  overflow: visible;
+}

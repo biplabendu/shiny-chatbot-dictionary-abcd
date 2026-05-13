@@ -28,3 +28,6 @@ dd-abcd-6_0_minimal_noimag-dummy.csv
 
 # macOS
 **/*.DS_Store
+
+# MkDocs build output
+site/
