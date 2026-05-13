@@ -8,6 +8,9 @@
 python_env/
 python/__pycache__/
 
+# RENV folders
+renv/
+
 # Sanity-check scripts and intermediate experiments. Excluded from the deploy
 # bundle via .rscignore too.
 sanity-chks/

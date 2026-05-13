@@ -42,6 +42,12 @@ fi
 ok "$PY ($("$PY" --version))"
 
 section "2. Python virtualenv"
+# Ensure the venv is in .gitignore so it never gets tracked
+if ! grep -qs "^$VENV/" .gitignore; then
+  echo "" >> .gitignore
+  echo "$VENV/" >> .gitignore
+  ok "Added $VENV/ to .gitignore"
+fi
 if [[ -d "$VENV" ]]; then
   EXISTING_VER=$("$VENV/bin/python" -c 'import sys; print("%d.%d" % sys.version_info[:2])' 2>/dev/null || echo "?")
   if [[ "$EXISTING_VER" != "3.12" ]]; then
