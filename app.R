@@ -54,158 +54,25 @@ domain_all <- c(
 
 # --- UI ---
 ui <- page_fillable(
-  theme = bs_theme(preset = "flatly"),
+  # Brand palette + typography matches docs/stylesheets/extra.css (mkdocs site).
+  # Bootstrap SASS retints buttons / .bg-primary / links / etc. automatically.
+  theme = bs_theme(
+    preset      = "flatly",
+    primary     = "#62272D",   # burgundy
+    secondary   = "#FDBF6F",   # warm orange
+    info        = "#DEEBF7",   # pale blue
+    warning     = "#FF7F00",   # orange
+    danger      = "#E31A1C",   # red
+    success     = "#33A02C",   # green
+    base_font   = bslib::font_google("Inter"),
+    heading_font = bslib::font_google("Inter"),
+    code_font   = bslib::font_google("Source Code Pro")
+  ),
   
   tags$head(
-    tags$style(HTML("
-      .card { height: 100%; }
-      .form-group { margin-bottom: 15px; }
-      .no-gap { gap: 0 !important; }
-      .scrollable-checkboxes {
-        max-height: 200px;
-        overflow-y: auto;
-        padding: 5px;
-        border: 1px solid #e9ecef;
-        border-radius: 4px;
-        background-color: #f8f9fa;
-      }
-      .filter-actions { font-size: 0.8rem; margin-bottom: 5px; }
+    # All app styling lives in www/app.css (Shiny serves www/ at the app root).
+    tags$link(rel = "stylesheet", type = "text/css", href = "app.css"),
 
-      @media (max-width: 768px) {
-
-        /* 1. Allow the page to scroll vertically on mobile
-              (page_fillable locks overflow:hidden by default) */
-        html, body {
-          overflow: auto !important;
-          height: auto !important;
-        }
-        .bslib-page-fill {
-          height: auto !important;
-          min-height: 100vh !important;
-          overflow: visible !important;
-        }
-
-        /* 2. Let the outer layout and card grow with content */
-        .bslib-sidebar-layout:not(.no-gap),
-        .bslib-sidebar-layout:not(.no-gap) > [role='main'] {
-          height: auto !important;
-          overflow: visible !important;
-        }
-        .card:has(.bslib-sidebar-layout.no-gap) {
-          height: auto !important;
-          min-height: 0 !important;
-          overflow: visible !important;
-        }
-
-        /* 3. Switch the inner (right-sidebar) layout from CSS grid to flex column
-              so the table sits on TOP and the filter panel stacks BELOW */
-        .bslib-sidebar-layout.no-gap,
-        .bslib-sidebar-layout.sidebar-right.no-gap {
-          display: flex !important;
-          flex-direction: column !important;
-          height: auto !important;
-          min-height: 0 !important;
-          overflow: visible !important;
-        }
-
-        /* 4. Table area: full width, fixed scrollable height */
-        .bslib-sidebar-layout.no-gap > [role='main'],
-        .bslib-sidebar-layout.no-gap > .bslib-main {
-          order: 1 !important;
-          width: 100% !important;
-          height: 55vh !important;
-          min-height: 200px !important;
-          overflow: auto !important;
-          grid-column: unset !important;
-        }
-
-        /* 5. Right sidebar: full width, stacked below, always visible */
-        .bslib-sidebar-layout.no-gap > aside,
-        .bslib-sidebar-layout.no-gap > .bslib-sidebar {
-          display: block !important;   /* override any bslib-injected display:none */
-          order: 2 !important;
-          width: 100% !important;
-          max-width: 100% !important;
-          height: auto !important;
-          max-height: none !important;
-          overflow-y: auto !important;
-          border-left: none !important;
-          border-top: 1px solid #dee2e6 !important;
-          grid-column: unset !important;
-        }
-
-        /* 6. Keep the bslib collapse toggle visible on mobile so users can
-              re-open the right filter panel after it auto-hides on search. */
-        .no-gap .collapse-toggle {
-          display: flex !important;
-          z-index: 5;
-        }
-
-        /* 7. Cap the reactable so it doesn't overflow its container */
-        #results_table {
-          height: 55vh !important;
-        }
-
-        /* 8. Compact, mobile-friendly table cells */
-        #results_table .rt-td,
-        #results_table .rt-th {
-          padding: 4px 6px !important;
-          font-size: 0.8rem !important;
-          line-height: 1.25 !important;
-        }
-        #results_table .rt-td {
-          white-space: normal !important;
-          word-break: break-word !important;
-        }
-        /* Hide pagination summary text — keep the page buttons */
-        #results_table .rt-page-info,
-        #results_table .rt-page-size {
-          display: none !important;
-        }
-        /* Tighten the global search box */
-        #results_table .rt-search {
-          font-size: 0.85rem !important;
-          margin-bottom: 4px !important;
-        }
-
-        /* 9. When bslib marks the right sidebar closed, fully hide it
-              (our flex-column override would otherwise keep it visible). */
-        .bslib-sidebar-layout.no-gap[data-bslib-sidebar-open='closed'] > aside,
-        .bslib-sidebar-layout.no-gap[data-bslib-sidebar-open='closed'] > .bslib-sidebar,
-        .bslib-sidebar-layout.no-gap > .bslib-sidebar[aria-hidden='true'],
-        .bslib-sidebar-layout.no-gap > aside[aria-hidden='true'] {
-          display: none !important;
-        }
-        /* And when closed, let the table area take all available height */
-        .bslib-sidebar-layout.no-gap[data-bslib-sidebar-open='closed'] > [role='main'],
-        .bslib-sidebar-layout.no-gap[data-bslib-sidebar-open='closed'] > .bslib-main {
-          height: auto !important;
-          min-height: 70vh !important;
-        }
-
-        /* 10. Make the row-details modal fit narrow screens */
-        .modal-dialog,
-        .modal-dialog.modal-lg {
-          margin: 0.5rem !important;
-          max-width: calc(100% - 1rem) !important;
-        }
-        .modal-body { padding: 0.75rem !important; }
-      }
-
-      /* Row-details modal table: wrap long values, full width */
-      .row-details-table { table-layout: fixed; width: 100%; }
-      .row-details-table th,
-      .row-details-table td {
-        word-break: break-word;
-        overflow-wrap: anywhere;
-        white-space: normal;
-        vertical-align: top;
-      }
-      .row-details-table th { width: 30%; }
-
-      /* Visual cue that rows are clickable */
-      #results_table .rt-tr:not(.rt-tr-header):not(.rt-tr-filter) { cursor: pointer; }
-    ")),
     tags$script(HTML(paste0("
       $(document).on('keydown', '#search_query', function(e) {
         if (e.key === 'Enter' && !e.shiftKey) {
@@ -240,9 +107,9 @@ ui <- page_fillable(
   
   title = "ABCD Semantic Search",
   
-  # Header
+  # Header (brand-burgundy bar — see .app-header in www/app.css)
   div(
-    class = "bg-primary text-white p-3 rounded-2 mb-2",
+    class = "app-header bg-primary text-white p-3 rounded-2 mb-2",
     h2("ABCD Data Dictionary Semantic Search", class = "m-0")
   ),
 
@@ -310,7 +177,7 @@ ui <- page_fillable(
               # 1. Action Buttons (Merged HEAD delete with ui Download/Hide)
               div(
                 class = "mb-4 border-bottom pb-3 d-flex flex-column gap-2",
-                h6("Actions", class = "fw-bold text-uppercase text-secondary small"),
+                h6("Actions", class = "fw-bold text-uppercase text-primary small"),
                 
                 # Delete Row (HEAD)
                 actionButton(
@@ -341,7 +208,7 @@ ui <- page_fillable(
               ),
               
               # 2. Filters (HEAD - Preserved as requested)
-              h6("Filters", class = "fw-bold text-uppercase text-secondary small"),
+              h6("Filters", class = "fw-bold text-uppercase text-primary small"),
               accordion(
                 open = c("Source", "Domain"), 
                 

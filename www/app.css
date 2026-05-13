@@ -1,0 +1,230 @@
+/* ============================================================
+   ABCD Dictionary Search — app.css
+
+   Brand palette (matches docs/stylesheets/extra.css for mkdocs):
+     primary   #62272D  burgundy
+     secondary #FDBF6F  warm orange
+     info      #DEEBF7  pale blue
+     warning   #FF7F00  orange
+     danger    #E31A1C  red
+     success   #33A02C  green
+
+   Bootstrap's primary / secondary / info / etc. and the base
+   typography are retinted via `bs_theme(...)` in app.R, so most
+   components (buttons, .bg-primary, .text-primary, links) inherit
+   the palette automatically. This file adds:
+     • layout + responsive (mobile) rules
+     • brand polish that SASS theming doesn't cover (reactable
+       header tint, tab underline, row hover, etc.)
+   ============================================================ */
+
+/* ============================================================
+   1. Base layout
+   ============================================================ */
+.card { height: 100%; }
+.form-group { margin-bottom: 15px; }
+.no-gap { gap: 0 !important; }
+
+.scrollable-checkboxes {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 5px;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  background-color: #f8f9fa;
+}
+
+.filter-actions {
+  font-size: 0.8rem;
+  margin-bottom: 5px;
+}
+.filter-actions a { color: var(--bs-primary, #62272D); }
+
+/* ============================================================
+   2. Brand polish
+   ============================================================ */
+
+/* App header banner */
+.app-header {
+  background: var(--bs-primary, #62272D) !important;
+  color: #fff;
+  border-bottom: 3px solid var(--bs-secondary, #FDBF6F);
+}
+.app-header h2 {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+/* Sidebar card-header (Search Parameters / Refine Results) */
+.bslib-sidebar .card-header {
+  background: var(--bs-info, #DEEBF7);
+  color: var(--bs-primary, #62272D);
+  font-weight: 700;
+  border-bottom: 2px solid var(--bs-primary, #62272D);
+}
+
+/* Tabs: active tab underlined in brand burgundy */
+.nav-tabs .nav-link.active {
+  border-bottom: 3px solid var(--bs-primary, #62272D) !important;
+  color: var(--bs-primary, #62272D) !important;
+  font-weight: 700;
+}
+
+/* Reactable header row tinted with brand-info pale blue */
+#results_table .rt-th {
+  background: var(--bs-info, #DEEBF7);
+  color: #1a1a1a;
+  font-weight: 700;
+}
+
+/* Subtle row hover in warm orange */
+#results_table .rt-tr-highlight:hover .rt-td {
+  background: rgba(253, 191, 111, 0.18) !important;
+}
+
+/* Click-cue for rows (row-details modal trigger) */
+#results_table .rt-tr:not(.rt-tr-header):not(.rt-tr-filter) {
+  cursor: pointer;
+}
+
+/* Row-details modal */
+.modal-header {
+  border-bottom-width: 2px;
+  border-bottom-color: var(--bs-primary, #62272D);
+}
+.row-details-table { table-layout: fixed; width: 100%; }
+.row-details-table th,
+.row-details-table td {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  vertical-align: top;
+}
+.row-details-table th {
+  width: 30%;
+  color: var(--bs-primary, #62272D);
+}
+
+/* ============================================================
+   3. Mobile (≤768px): structural overrides + responsive table
+   ============================================================ */
+@media (max-width: 768px) {
+
+  /* 3.1 Allow the page to scroll vertically on mobile
+         (page_fillable locks overflow:hidden by default) */
+  html, body {
+    overflow: auto !important;
+    height: auto !important;
+  }
+  .bslib-page-fill {
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow: visible !important;
+  }
+
+  /* 3.2 Let the outer layout and card grow with content */
+  .bslib-sidebar-layout:not(.no-gap),
+  .bslib-sidebar-layout:not(.no-gap) > [role='main'] {
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .card:has(.bslib-sidebar-layout.no-gap) {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* 3.3 Switch the inner (right-sidebar) layout from CSS grid
+         to flex column so the table sits on TOP and the filter
+         panel stacks BELOW */
+  .bslib-sidebar-layout.no-gap,
+  .bslib-sidebar-layout.sidebar-right.no-gap {
+    display: flex !important;
+    flex-direction: column !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* 3.4 Table area: full width, fixed scrollable height */
+  .bslib-sidebar-layout.no-gap > [role='main'],
+  .bslib-sidebar-layout.no-gap > .bslib-main {
+    order: 1 !important;
+    width: 100% !important;
+    height: 55vh !important;
+    min-height: 200px !important;
+    overflow: auto !important;
+    grid-column: unset !important;
+  }
+
+  /* 3.5 Right sidebar: full width, stacked below, always visible
+         (when bslib hasn't closed it — see 3.9 below) */
+  .bslib-sidebar-layout.no-gap > aside,
+  .bslib-sidebar-layout.no-gap > .bslib-sidebar {
+    display: block !important;
+    order: 2 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow-y: auto !important;
+    border-left: none !important;
+    border-top: 1px solid #dee2e6 !important;
+    grid-column: unset !important;
+  }
+
+  /* 3.6 Keep the bslib collapse toggle visible so users can
+         re-open the right filter panel after it auto-hides */
+  .no-gap .collapse-toggle {
+    display: flex !important;
+    z-index: 5;
+  }
+
+  /* 3.7 Cap reactable so it doesn't overflow its container */
+  #results_table {
+    height: 55vh !important;
+  }
+
+  /* 3.8 Compact, mobile-friendly table cells */
+  #results_table .rt-td,
+  #results_table .rt-th {
+    padding: 4px 6px !important;
+    font-size: 0.8rem !important;
+    line-height: 1.25 !important;
+  }
+  #results_table .rt-td {
+    white-space: normal !important;
+    word-break: break-word !important;
+  }
+  #results_table .rt-page-info,
+  #results_table .rt-page-size {
+    display: none !important;
+  }
+  #results_table .rt-search {
+    font-size: 0.85rem !important;
+    margin-bottom: 4px !important;
+  }
+
+  /* 3.9 When bslib marks the right sidebar closed, fully hide it
+         (our flex-column override would otherwise keep it visible). */
+  .bslib-sidebar-layout.no-gap[data-bslib-sidebar-open='closed'] > aside,
+  .bslib-sidebar-layout.no-gap[data-bslib-sidebar-open='closed'] > .bslib-sidebar,
+  .bslib-sidebar-layout.no-gap > .bslib-sidebar[aria-hidden='true'],
+  .bslib-sidebar-layout.no-gap > aside[aria-hidden='true'] {
+    display: none !important;
+  }
+  /* When closed, let the table area take all available height */
+  .bslib-sidebar-layout.no-gap[data-bslib-sidebar-open='closed'] > [role='main'],
+  .bslib-sidebar-layout.no-gap[data-bslib-sidebar-open='closed'] > .bslib-main {
+    height: auto !important;
+    min-height: 70vh !important;
+  }
+
+  /* 3.10 Make the row-details modal fit narrow screens */
+  .modal-dialog,
+  .modal-dialog.modal-lg {
+    margin: 0.5rem !important;
+    max-width: calc(100% - 1rem) !important;
+  }
+  .modal-body { padding: 0.75rem !important; }
+}
