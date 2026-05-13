@@ -9,6 +9,7 @@ library(nanoparquet)
 
 # --- ENVIRONMENT CONFIG ---
 options(shiny.autoreload = TRUE)
+options(shiny.autoreload.legacy_warning = FALSE)  # silence "install watcher" nag
 
 # --- FILE SETUP ---
 dictionary_path <- "data/dd-abcd-6_0.parquet"
@@ -529,7 +530,8 @@ server <- function(input, output, session) {
     
     reactable::reactable(
       data,
-      elementId = "results_table", # Required for JS Download button
+      # Note: no `elementId` — Shiny uses the output id ("results_table")
+      # as the DOM id automatically. Setting it again triggers a warning.
       columns = list(
         label = reactable::colDef(minWidth = 450, name = "Description"),
         name = reactable::colDef(minWidth = 200, name = "Variable Name"),
