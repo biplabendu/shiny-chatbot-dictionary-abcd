@@ -3,6 +3,7 @@ site_description: Semantic search over the ABCD study data dictionary. R Shiny +
 site_url: https://biplabendu.github.io/shiny-chatbot-dictionary-abcd/
 repo_url: https://github.com/biplabendu/shiny-chatbot-dictionary-abcd
 repo_name: biplabendu/shiny-chatbot-dictionary-abcd
+edit_uri: edit/main/docs/
 
 theme:
   name: readthedocs
