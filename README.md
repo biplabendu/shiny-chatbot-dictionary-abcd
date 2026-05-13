@@ -1,139 +1,62 @@
-# Running it on your computer
+# ABCD Dictionary Search
 
-This section describes how to run the application on your local machine.
+Semantic search over the [ABCD Study](https://abcdstudy.org/) data dictionary. Type a phrase like *"screen time on weekends"* or *"BMI"* — the app returns the variables in the dictionary whose labels mean roughly the same thing, ranked by cosine similarity.
 
-> The instructions below were tested on macOS (OSX).
+**Live demo:** [biplabendu.shinyapps.io/abcd-dictionary](https://biplabendu.shinyapps.io/abcd-dictionary/)
 
+**Documentation:** [biplabendu.github.io/shiny-chatbot-dictionary-abcd](https://biplabendu.github.io/shiny-chatbot-dictionary-abcd/)
 
-## Getting the repository
+## How it works (in one paragraph)
 
-You can obtain the repository by cloning it from GitHub:
+The app is R Shiny on top of a Python search backend, bridged by [reticulate](https://rstudio.github.io/reticulate/). Queries are encoded with [MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2) quantized to ONNX int8 (~23 MB, runs on CPU via [onnxruntime](https://onnxruntime.ai/)). Corpus embeddings are **pre-baked** to fp16 NumPy arrays at build time, so search at runtime is a single matmul. The dictionary table for the UI is stored as Parquet and read by [`nanoparquet`](https://nanoparquet.r-lib.org/). See [How it works](https://biplabendu.github.io/shiny-chatbot-dictionary-abcd/how-it-works/) for the full pipeline.
+
+## Quickstart
+
+Tested on macOS. Requires Python 3.12 and R ≥ 4.5 on `PATH` (the scripts will offer to install them via Homebrew if missing).
+
+```bash
+git clone https://github.com/biplabendu/shiny-chatbot-dictionary-abcd.git
+cd shiny-chatbot-dictionary-abcd
+
+# Place the source CSVs in data/ first (see data/Readme.md).
+./setup.sh           # one-time: build python_env, download model, bake artifacts
+./run.sh             # start the app on http://127.0.0.1:4444
+```
+
+Re-run `./setup.sh` whenever `requirements.txt` or the source CSVs change.
+
+## Deploying to shinyapps.io
+
+```bash
+# One-time, in R:
+#   rsconnect::setAccountInfo(name=..., token=..., secret=...)
+./deploy.sh
+```
+
+The deploy script verifies prerequisites, previews the bundle, and runs `rsconnect::deployApp` with manifest-based Python provisioning. See [Deployment](https://biplabendu.github.io/shiny-chatbot-dictionary-abcd/deployment/) for the full walkthrough and troubleshooting tips.
+
+## Repo layout
 
 ```
-git clone https://github.com/biplabendu/abcd-dictionary-chatbot
+app.R                       Shiny UI + reticulate bridge
+.Rprofile                   activates renv locally; deferred to manifest on shinyapps.io
+requirements.txt            Python runtime deps (onnxruntime, tokenizers, numpy)
+renv.lock                   R package versions
+
+python/
+  backend.py                semantic_search() — runtime
+  build_embeddings.py       bakes model + .npy + .npz from the source CSVs
+  model/                    ONNX model + tokenizer (downloaded by build script)
+
+data/
+  dd-abcd-6_0.parquet       UI table (full dictionary, snappy-compressed)
+  embeddings/               *.npy (fp16 embeddings) + *.npz (domain + label arrays)
+  *.csv                     raw source CSVs — gitignored, build inputs only
+
+setup.sh / run.sh / deploy.sh
+docs/  mkdocs.yml           documentation site (deployed to GitHub Pages)
 ```
 
-### Alternative: Download as a ZIP
+## License
 
-If you prefer not to use Git, you can download the repository as a ZIP file:
-
-1. Go to the repository page: https://github.com/biplabendu/abcd-dictionary-chatbot
-2. Click the Code button.
-3. Select Download ZIP.
-4. Extract the ZIP archive to a location of your choice.
-
-
-## Software requirements
-
-**This application uses both R and Python, so you will need to install and configure dependencies for both environments.**
-
-### R setup
-
-You can run the R components using either:
-- the R command-line interface (CLI), or
-- RStudio.
-
-Instructions are provided for both options below — **you only need to follow one**.
-
-
-#### Option A: R Command Line Interface (CLI)
-
-1. Install R
-
-   If R is not already installed, download and install R version 4.5 or above from [this page](https://cran.rstudio.com/)
-
-2. Navigate to the app directory
-
-   From your terminal, move to the application directory:
-   ```
-   cd abcd-dictionary-chatbot/dev/app-v1
-   ```
-3. Start the `R` interpreter
-
-   ```
-   R
-   ```
-   **Note:** If you see "Error: could not find function "install.package"", you should try running `install.packages("renv")`
-
-4. Install required `R` packages:
-
-   Inside the `R` session, restore the project environment using renv:
-   ```R
-   renv::restore()
-   ```   
-   This will install all required R dependencies defined for the project.
-
-#### Option B: RStudio (alternative)
-If you prefer to use RStudio:
-
-1. Install R
-
-   If R is not already installed, download and install R version 4.5 or above from [this page](https://cran.rstudio.com/)
-
-2. Install `Rstudio`
-
-   Install `Rstudio` from [here](https://posit.co/download/rstudio-desktop/)
-
-3. Open `Rstudio`
-
-4. Open the app in `Rstudio`
-
-   Double click the `app-v1.Rproj` file
-
-5.  Run `renv::restore()` to install necessary packages
-
-
-### Python setup
-
-Your system likely already has Python installed. You can verify this by checking the Python executable and version in your terminal.
-
-1. Check the Python installation
-
-   ```
-   which python # should return a path
-   python --version
-   ```
-   The Python version should be 3.11 or newer. If you don't have `Python`, download and install from [here](https://www.python.org/downloads/).
-
-2. Navigate to the app directory
-
-   From your terminal, move to the application directory:
-   ```
-   cd abcd-dictionary-chatbot/dev/app-v1
-   ```
-   
-3. Create a Python virtual environment
-
-   Create and activate a Python virtual environment, then install the required packages:
-   ```
-   python3 -m venv python_env
-   source python_env/bin/activate
-   pip install -r requirements.txt
-   ```
-
-## Run the app locally
-You can run the application locally using either the `R` command-line interface (CLI) or `RStudio`.
-
-### Option A: R Command Line Interface (CLI)
-
-1. Start the `R` interpreter from the application directory:
-
-   ```
-   R
-   ```
-2. Run the app in the R interpreter:
-
-   ```R
-   shiny::runApp()
-   ```
-
-### Option B: RStudio
-1. Open `RStudio`.
-2. Double-click the `app-v1.Rproj` file to open the project.
-3. Open the `app.R` file.
-4. Click Run App in the top-right corner of the script editor.
-
-### Notes
-
-- Ensure that all R and Python dependencies have been installed before running the app.
-- The application will open in a web browser once it starts.
+MIT. See [LICENSE](LICENSE).
