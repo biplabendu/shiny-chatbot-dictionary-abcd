@@ -57,6 +57,34 @@ setup.sh / run.sh / deploy.sh
 docs/  mkdocs.yml           documentation site (deployed to GitHub Pages)
 ```
 
+## Versions
+
+The dictionary release drives both the deployment bundle size and the runtime memory footprint. Comparison of the current build (ABCD 7.0) against the previously shipped build (6.0):
+
+### Bundled data on disk (`data/`)
+
+| File                      |     6.0 |     7.0 |          Δ |
+| ------------------------- | ------: | ------: | ---------: |
+| `dd-abcd-*.parquet`       | 6.75 MB | 5.01 MB | −1.74 MB   |
+| `embeddings_imag.npy`     | 60.94 MB | 68.63 MB | +7.69 MB |
+| `embeddings_noimag.npy`   | 19.55 MB | 27.15 MB | +7.60 MB |
+| `metadata_imag.npz`       | 0.64 MB | 0.77 MB | +0.13 MB   |
+| `metadata_noimag.npz`     | 0.26 MB | 0.39 MB | +0.13 MB   |
+| **Total bundled data**    | **88.14 MB** | **101.95 MB** | **+13.81 MB (+15.7%)** |
+
+The 7.0 parquet is smaller despite containing more rows (fewer columns retained / better compression).
+
+### Embedding matrices in RAM (float16, 384-dim)
+
+| Corpus | 6.0 shape    | 7.0 shape    | Row Δ              | RAM Δ    |
+| ------ | ------------ | ------------ | ------------------ | -------- |
+| imag   | 83,206 × 384 | 93,699 × 384 | +10,493 (+12.6%)   | +7.69 MB |
+| noimag | 26,692 × 384 | 37,068 × 384 | +10,376 (+38.9%)   | +7.60 MB |
+
+Resident memory for the embedding matrices increases by ~**15.3 MB**. Additional runtime memory (the parquet held in R, per-row UI structures) scales roughly with row count but was not measured here.
+
+**Bottom line:** moving from 6.0 to 7.0 adds ~14 MB to the deployed bundle (88 → 102 MB) and ~15 MB to embedding RAM, driven by 12.6% more imaging rows and 38.9% more non-imaging rows.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).

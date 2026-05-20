@@ -25,6 +25,5 @@ site
 # Local R session state — rsconnect's hardcoded list covers .Rhistory but not .RData.
 .RData
 
-# Root-level duplicate CSVs (build inputs only).
-dd-abcd-6_0_minimal_noimag.csv
-dd-abcd-6_0_minimal_noimag-dummy.csv
+# Root-level duplicate release CSVs (dev artifacts, build inputs only) are
+# excluded dynamically by deploy.sh — see data/.rscignore for details.

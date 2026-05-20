@@ -1,15 +1,22 @@
 """
-One-shot build script — run locally whenever the source CSVs change.
+One-shot build script — run locally whenever the source dictionary changes.
 
 Produces every artifact the deployed app needs:
-  python/model/model.onnx          (downloaded once from HF)
-  python/model/tokenizer.json      (downloaded once from HF)
-  data/embeddings/embeddings_<x>.npy  (fp16, per imag/noimag corpus)
-  data/embeddings/metadata_<x>.npz    (domain + label arrays, per corpus)
-  data/dd-abcd-6_0.parquet         (full dictionary for the R UI)
+  python/model/model.onnx              (downloaded once from HF)
+  python/model/tokenizer.json          (downloaded once from HF)
+  data/embeddings/embeddings_<x>.npy   (fp16, per corpus)
+  data/embeddings/metadata_<x>.npz     (metadata + text arrays, per corpus)
 
-pandas + huggingface_hub are only needed here (build-time), not in the
-deployed runtime — that's why they're not in requirements.txt.
+The dictionary parquet at data/<dictionary.parquet> is the single source of
+truth. Both corpora are derived from it in-memory:
+  imag   = every row with a non-null text_column value
+  noimag = imag filtered to drop rows where metadata_column == "Imaging"
+
+All paths, the embedding model, and the columns are read from config.yml at
+the repo root — edit that file rather than hard-coding new values here.
+
+pandas + huggingface_hub + pyyaml are only needed here (build-time), not in
+the deployed runtime — that's why they're not in requirements.txt.
 
 Usage:
     python python/build_embeddings.py
@@ -22,29 +29,31 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import yaml
 from huggingface_hub import hf_hub_download
 
 import onnxruntime as ort
 from tokenizers import Tokenizer
 
 
-REPO_ID = "sentence-transformers/all-MiniLM-L6-v2"
-ONNX_HUB_PATH = "onnx/model_quint8_avx2.onnx"   # AVX2 is universal on Linux x86_64.
-
 ROOT = Path(__file__).resolve().parent.parent
+CONFIG_PATH = ROOT / "config.yml"
+
+with open(CONFIG_PATH) as f:
+    CONFIG = yaml.safe_load(f)
+
+REPO_ID       = CONFIG["model"]["repo_id"]
+ONNX_HUB_PATH = CONFIG["model"]["onnx_hub_path"]
+MAX_SEQ_LEN   = int(CONFIG["model"]["max_seq_len"])
+BATCH_SIZE    = int(CONFIG["model"]["batch_size"])
+
+TEXT_COL     = CONFIG["dictionary"]["text_column"]
+METADATA_COL = CONFIG["dictionary"]["metadata_column"]
+FULL_PARQUET = CONFIG["dictionary"]["parquet"]
+
 MODEL_DIR = ROOT / "python" / "model"
-DATA_DIR = ROOT / "data"
-EMB_DIR = DATA_DIR / "embeddings"
-
-# (csv_filename, suffix used in output filenames)
-CORPORA = [
-    ("dd-abcd-6_0_minimal_noimag.csv", "noimag"),
-    ("dd-abcd-6_0_minimal.csv",        "imag"),
-]
-
-# Full dictionary CSV that the R UI displays (converted once to parquet).
-FULL_CSV = "dd-abcd-6_0.csv"
-FULL_PARQUET = "dd-abcd-6_0.parquet"
+DATA_DIR  = ROOT / "data"
+EMB_DIR   = DATA_DIR / "embeddings"
 
 
 def ensure_model_files():
@@ -65,7 +74,7 @@ def ensure_model_files():
         print(f"  saved {dest.stat().st_size/1e6:.1f} MB")
 
 
-def build_encoder(max_len=128):
+def build_encoder(max_len=MAX_SEQ_LEN):
     tok = Tokenizer.from_file(str(MODEL_DIR / "tokenizer.json"))
     tok.enable_padding(pad_id=0, pad_token="[PAD]")
     tok.enable_truncation(max_length=max_len)
@@ -78,7 +87,7 @@ def build_encoder(max_len=128):
     return tok, sess, input_names
 
 
-def encode(tok, sess, input_names, sentences, batch_size=64):
+def encode(tok, sess, input_names, sentences, batch_size=BATCH_SIZE):
     out = []
     for i in range(0, len(sentences), batch_size):
         batch = sentences[i:i + batch_size]
@@ -97,52 +106,63 @@ def encode(tok, sess, input_names, sentences, batch_size=64):
     return np.vstack(out).astype(np.float32)
 
 
-def build_corpus(csv_name, suffix, tok, sess, input_names):
-    csv_path = DATA_DIR / csv_name
-    if not csv_path.exists():
-        print(f"  [skip] {csv_name} not found")
-        return
-    df = pd.read_csv(csv_path).dropna(subset=["label"]).reset_index(drop=True)
-    labels = df["label"].astype(str).tolist()
-    domains = df["domain"].astype(str).to_numpy()
+def encode_subset(df, suffix, tok, sess, input_names):
+    texts = df[TEXT_COL].astype(str).tolist()
+    metadata = df[METADATA_COL].astype(str).to_numpy()
 
-    print(f"  {csv_name}: encoding {len(labels):,} labels")
+    print(f"  [{suffix}] encoding {len(texts):,} {TEXT_COL}s")
     t0 = time.time()
-    emb = encode(tok, sess, input_names, labels).astype(np.float16)
+    emb = encode(tok, sess, input_names, texts).astype(np.float16)
     dt = time.time() - t0
 
     emb_path  = EMB_DIR / f"embeddings_{suffix}.npy"
     meta_path = EMB_DIR / f"metadata_{suffix}.npz"
     np.save(emb_path, emb)
+    # Keys are kept as `domains`/`labels` for backward compatibility with the
+    # runtime loader in python/backend.py.
     np.savez_compressed(meta_path,
-                        domains=domains,
-                        labels=np.array(labels, dtype=object))
+                        domains=metadata,
+                        labels=np.array(texts, dtype=object))
 
-    print(f"    encoded in {dt:.1f}s ({len(labels)/dt:.0f} sent/s)")
+    print(f"    encoded in {dt:.1f}s ({len(texts)/dt:.0f} sent/s)")
     print(f"    saved {emb_path.relative_to(ROOT)}  "
           f"({emb_path.stat().st_size/1e6:.1f} MB, fp16)")
     print(f"    saved {meta_path.relative_to(ROOT)} "
           f"({meta_path.stat().st_size/1e6:.2f} MB)")
 
 
-def build_full_parquet():
-    """Convert the big UI dictionary CSV to parquet using fastparquet
-    so we don't drag pyarrow into the dev install."""
-    csv_path = DATA_DIR / FULL_CSV
-    pq_path  = DATA_DIR / FULL_PARQUET
-    if not csv_path.exists():
-        print(f"  [skip] {FULL_CSV} not found")
-        return
-    if pq_path.exists() and pq_path.stat().st_mtime > csv_path.stat().st_mtime:
-        print(f"  [skip] {FULL_PARQUET} is up to date "
-              f"({pq_path.stat().st_size/1e6:.1f} MB)")
-        return
-    print(f"  reading {FULL_CSV} ({csv_path.stat().st_size/1e6:.1f} MB)")
-    df = pd.read_csv(csv_path, dtype=str, keep_default_na=False)
-    print(f"  writing {FULL_PARQUET} (snappy)")
-    df.to_parquet(pq_path, engine="fastparquet", compression="snappy", index=False)
-    print(f"    saved {pq_path.relative_to(ROOT)} "
+def build_corpora(tok, sess, input_names):
+    pq_path = DATA_DIR / FULL_PARQUET
+    if not pq_path.exists():
+        raise FileNotFoundError(
+            f"{pq_path.relative_to(ROOT)} not found — drop the dictionary "
+            f"parquet named in config.yml into data/ before running."
+        )
+    print(f"  reading {pq_path.relative_to(ROOT)} "
           f"({pq_path.stat().st_size/1e6:.1f} MB)")
+    df = pd.read_parquet(pq_path, engine="fastparquet")
+    for col in (TEXT_COL, METADATA_COL):
+        if col not in df.columns:
+            raise KeyError(
+                f"column {col!r} missing from {FULL_PARQUET} — check "
+                f"config.yml text_column/metadata_column."
+            )
+
+    imag = df.dropna(subset=[TEXT_COL]).reset_index(drop=True)
+    noimag = imag[imag[METADATA_COL] != "Imaging"].reset_index(drop=True)
+    print(f"  full={len(df):,}  imag={len(imag):,}  noimag={len(noimag):,}")
+
+    encode_subset(noimag, "noimag", tok, sess, input_names)
+    encode_subset(imag,   "imag",   tok, sess, input_names)
+
+
+def write_manifest():
+    """Record which parquet these embeddings were built against so the R UI
+    can detect config.yml/embeddings drift and refuse to start (instead of
+    silently displaying the wrong dictionary version)."""
+    manifest = EMB_DIR / "manifest.txt"
+    manifest.write_text(FULL_PARQUET + "\n")
+    print(f"  wrote {manifest.relative_to(ROOT)} ({FULL_PARQUET})")
 
 
 def main():
@@ -156,11 +176,10 @@ def main():
     EMB_DIR.mkdir(parents=True, exist_ok=True)
 
     print("\n=== 3. Encoding corpora ===")
-    for csv_name, suffix in CORPORA:
-        build_corpus(csv_name, suffix, tok, sess, input_names)
+    build_corpora(tok, sess, input_names)
 
-    print("\n=== 4. Full dictionary -> parquet (for R UI) ===")
-    build_full_parquet()
+    print("\n=== 4. Manifest ===")
+    write_manifest()
 
     print("\n=== Done ===")
     print(f"  Model dir:       {MODEL_DIR.relative_to(ROOT)}")

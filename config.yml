@@ -1,0 +1,32 @@
+# config.yml — single source of truth for setup.sh and python/build_embeddings.py.
+#
+# Edit this file to point the build pipeline at a different dictionary release,
+# embed from a different column, or swap the embedding model. Both setup.sh
+# and python/build_embeddings.py read these values at run-time.
+
+# Python toolchain --------------------------------------------------------
+python_version: "3.12"       # required interpreter version (X.Y)
+venv_dir: python_env         # virtualenv directory (relative to repo root)
+
+# Embedding model ---------------------------------------------------------
+model:
+  repo_id: sentence-transformers/all-MiniLM-L6-v2
+  onnx_hub_path: onnx/model_quint8_avx2.onnx   # AVX2 is universal on Linux x86_64
+  max_seq_len: 128
+  batch_size: 64
+
+# Dictionary --------------------------------------------------------------
+# The parquet filename is the single source of truth. Its stem (filename
+# without the .parquet suffix) is reused to locate the source CSVs under
+# data/:
+#   <stem>.csv                  -> converted to <stem>.parquet for the R UI
+#   <stem>_minimal.csv          -> embeddings_imag.npy   + metadata_imag.npz
+#   <stem>_minimal_noimag.csv   -> embeddings_noimag.npy + metadata_noimag.npz
+# To point the pipeline at a new release, edit only `parquet:` below.
+dictionary:
+  parquet: dd-abcd-7_0.parquet
+
+  # Column whose text content is encoded into embeddings.
+  text_column: label
+  # Column kept alongside each embedding as metadata.
+  metadata_column: domain
