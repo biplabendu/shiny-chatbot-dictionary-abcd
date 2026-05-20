@@ -12,11 +12,37 @@ options(shiny.autoreload = TRUE)
 options(shiny.autoreload.legacy_warning = FALSE)  # silence "install watcher" nag
 
 # --- FILE SETUP ---
-dictionary_path <- "data/dd-abcd-6_0.parquet"
+# config.yml is the single source of truth for which dictionary release the
+# embeddings were built against — keeping the R UI in lockstep with the
+# Python pipeline. To switch dictionaries, edit config.yml and re-run setup.sh.
+config <- yaml::read_yaml("config.yml")
+dictionary_path <- file.path("data", config$dictionary$parquet)
 if (!file.exists(dictionary_path)) {
   stop(paste("Missing", dictionary_path,
              "- run ./setup.sh to build artifacts."))
 }
+
+# Guard against config.yml/embeddings drift: build_embeddings.py writes the
+# parquet it built against into data/embeddings/manifest.txt. If config.yml
+# was edited (e.g. bumped to 7.0) but setup.sh wasn't re-run, the embeddings
+# on disk are still for the previous release — searches return rows from the
+# old dictionary while the UI displays the new version. Refuse to start
+# instead of producing erroneous results / titles.
+manifest_path <- "data/embeddings/manifest.txt"
+if (!file.exists(manifest_path)) {
+  stop(paste("Missing", manifest_path,
+             "- run ./setup.sh to (re)build embeddings."))
+}
+built_parquet <- trimws(readLines(manifest_path, warn = FALSE)[1])
+if (!identical(built_parquet, config$dictionary$parquet)) {
+  stop(sprintf(
+    "Embeddings/config mismatch: config.yml points to '%s' but embeddings were built for '%s'. Run ./setup.sh to rebuild.",
+    config$dictionary$parquet, built_parquet))
+}
+
+# Extract version from filename (e.g. dd-abcd-7_0.parquet -> "7.0").
+dictionary_version <- sub(".*dd-abcd-([0-9]+)_([0-9]+)\\.parquet$", "\\1.\\2",
+                          basename(dictionary_path))
 
 # Python deps for reticulate's auto-installer (uv-based). On shinyapps.io,
 # reticulate downloads a pre-built CPython + these packages on first run.
@@ -123,12 +149,13 @@ ui <- page_fillable(
     ")))
   ),
   
-  title = "ABCD Semantic Search",
-  
+  title = paste0("ABCD Semantic Search (", dictionary_version, ")"),
+
   # Header (brand-burgundy bar — see .app-header in www/app.css)
   div(
     class = "app-header bg-primary text-white p-3 rounded-2 mb-2",
-    h2("ABCD Data Dictionary Semantic Search", class = "m-0")
+    h2(paste0("ABCD Data Dictionary Semantic Search (", dictionary_version, ")"),
+       class = "m-0")
   ),
 
   layout_sidebar(

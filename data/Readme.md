@@ -1,47 +1,49 @@
 # Obtaining the data dictionary
 
-#### 1. Download the ABCD 6.0 dd using R
+The build pipeline (`python/build_embeddings.py`, run by `setup.sh`) reads a
+single parquet file as its source of truth. The filename is set in `config.yml`
+under `dictionary.parquet` (e.g. `dd-abcd-7_0.parquet`); the build script
+derives both corpora from it in-memory:
+
+- `imag`   — every row with a non-null `label`
+- `noimag` — `imag` filtered to drop rows where `domain == "Imaging"`
+
+The parquet must contain at least the columns named in `config.yml` as
+`text_column` (default `label`) and `metadata_column` (default `domain`).
+
+### 1. Download the ABCD dictionary in R
 
 ```r
-NBDCtools::get_dd_abcd(release = "6.0") |> write.csv("path/to/your/directory/dd-abcd-6_0.csv", row.names = FALSE)
+dd <- NBDCtools::get_dd_abcd(release = "7.0")
 ```
 
-#### 2. Select only relevant columns and add a logical `substudy` column (TRUE if substudy, FALSE if core).
+### 2. Save it as parquet at the path config.yml expects
 
-<img width="600" height="600" alt="image" src="https://github.com/user-attachments/assets/510add5f-7e14-4e10-a993-1dc0ce294574" />
-
-`dd-abcd-6_0_minimal.csv` was created from the full csv file using `pandas`:
-
-```python
-import pandas as pd
-abcd_df = pd.read_csv('dd-abcd-6_0.csv')
-
-# using only subset of columns that are relevant
-abcd_min_df = abcd_df[["source", 'domain', 'sub_domain', 'table_name', 'table_label', 'name', 'label',"unit", "type_var", "type_data", "type_level"]]
-
-# creating a new columns to indicate if the element is part of `substudy`
-substudy_domains = ['COVID-19', 'Endocannabinoid', 'Hurricane Irma', 'MR Spectroscopy', 'Social Development']
-abcd_min_df["substudy"] = (
-    abcd_min_df["domain"]
-    .isin(substudy_domains)
-    .where(abcd_min_df["domain"].notna())
-    .astype("boolean")
-)
-
-abcd_min_df.to_csv("dd-abcd-6.0_minimal.csv", index=False, na_rep="NA")
+```r
+nanoparquet::write_parquet(dd, "data/dd-abcd-7_0.parquet")
 ```
 
-#### 3. Removing rows that are related to Imaging questions
+(Use `arrow::write_parquet()` if you prefer; the file just needs to be readable
+by `pandas.read_parquet(engine="fastparquet")`.)
 
-Around 70% of the questions are related to imaging, and for testing purpose we created a subset that doesn't have these questions. It is saved in `dd-abcd-6.0_minimal_noimag.csv`, and it was created from `dd-abcd-6.0_minimal.csv` suing the following filter:
+### 3. (Optional) point config.yml at a different release
 
+Edit `config.yml`:
 
-```python
-import pandas as pd
-abcd_df = pd.read_csv('dd-abcd-6_0_minimal.csv')
-# filtering domains
-rcdict_small = rcdict[rcdict["domain"] != 'Imaging']
-rcdict_small.to_csv("dd-abcd-6.0_minimal_noimag.csv", index=False, na_rep="NA")
+```yaml
+dictionary:
+  parquet: dd-abcd-7_0.parquet   # change this when a new release lands
+  text_column: label
+  metadata_column: domain
 ```
 
+### 4. Rebuild embeddings
 
+```sh
+./setup.sh
+```
+
+This regenerates `data/embeddings/{embeddings,metadata}_{imag,noimag}.*` and
+writes `data/embeddings/manifest.txt` recording which parquet the embeddings
+were built against — the R UI checks this at startup and refuses to start if it
+drifts from `config.yml`.
