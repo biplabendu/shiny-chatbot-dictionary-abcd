@@ -8,7 +8,7 @@ Semantic search over the [ABCD Study](https://abcdstudy.org/) data dictionary. T
 
 ## How it works (in one paragraph)
 
-The app is R Shiny on top of a Python search backend, bridged by [reticulate](https://rstudio.github.io/reticulate/). Queries are encoded with [MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2) quantized to ONNX int8 (~23 MB, runs on CPU via [onnxruntime](https://onnxruntime.ai/)). Corpus embeddings are **pre-baked** to fp16 NumPy arrays at build time, so search at runtime is a single matmul. The dictionary table for the UI is stored as Parquet and read by [`nanoparquet`](https://nanoparquet.r-lib.org/). See [How it works](https://biplabendu.github.io/shiny-chatbot-dictionary-abcd/how-it-works/) for the full pipeline.
+The app is R Shiny on top of a Python search backend, bridged by [reticulate](https://rstudio.github.io/reticulate/). Queries are encoded with [MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2) quantized to ONNX int8 (~23 MB, runs on CPU via [onnxruntime](https://onnxruntime.ai/)). Corpus embeddings are **pre-baked** to fp16 NumPy arrays at build time, so search at runtime is a single matmul. The dictionary table for the UI is stored as Parquet and read by [`nanoparquet`](https://nanoparquet.r-lib.org/). A top-level `config.yml` is the single source of truth — `setup.sh`, `python/build_embeddings.py`, and `app.R` all read it, and the embeddings carry a `manifest.txt` recording the parquet they were built against so the UI refuses to start on drift. See [How it works](https://biplabendu.github.io/shiny-chatbot-dictionary-abcd/how-it-works/) for the full pipeline.
 
 ## Quickstart
 
@@ -18,12 +18,24 @@ Tested on macOS. Requires Python 3.12 and R ≥ 4.5 on `PATH` (the scripts will 
 git clone https://github.com/biplabendu/shiny-chatbot-dictionary-abcd.git
 cd shiny-chatbot-dictionary-abcd
 
-# Place the source CSVs in data/ first (see data/Readme.md).
+# Place the active dictionary parquet in data/ first (see data/Readme.md).
+# Its filename must match dictionary.parquet in config.yml.
 ./setup.sh           # one-time: build python_env, download model, bake artifacts
 ./run.sh             # start the app on http://127.0.0.1:4444
 ```
 
-Re-run `./setup.sh` whenever `requirements.txt` or the source CSVs change.
+Re-run `./setup.sh` whenever `config.yml`, `requirements.txt`, or the dictionary parquet changes.
+
+## Switching ABCD releases
+
+Edit `config.yml` and point `dictionary.parquet` at a different file in `data/`, then re-run `./setup.sh`. `app.R` reads `config.yml` at startup, parses the version out of the filename (`dd-abcd-7_0.parquet` → `7.0`), and shows it in the title bar and header banner.
+
+```yaml
+dictionary:
+  parquet: dd-abcd-7_0.parquet
+  text_column: label
+  metadata_column: domain
+```
 
 ## Deploying to shinyapps.io
 
@@ -33,24 +45,25 @@ Re-run `./setup.sh` whenever `requirements.txt` or the source CSVs change.
 ./deploy.sh
 ```
 
-The deploy script verifies prerequisites, previews the bundle, and runs `rsconnect::deployApp` with manifest-based Python provisioning. See [Deployment](https://biplabendu.github.io/shiny-chatbot-dictionary-abcd/deployment/) for the full walkthrough and troubleshooting tips.
+The deploy script verifies prerequisites, cross-checks `data/embeddings/manifest.txt` against `config.yml`, previews the bundle, and runs `rsconnect::deployApp` with manifest-based Python provisioning. See [Deployment](https://biplabendu.github.io/shiny-chatbot-dictionary-abcd/deployment/) for the full walkthrough and troubleshooting tips.
 
 ## Repo layout
 
 ```
-app.R                       Shiny UI + reticulate bridge
+config.yml                  single source of truth (Python version, model, dictionary release)
+app.R                       Shiny UI + reticulate bridge — reads config.yml
 .Rprofile                   activates renv locally; deferred to manifest on shinyapps.io
 requirements.txt            Python runtime deps (onnxruntime, tokenizers, numpy)
 renv.lock                   R package versions
 
 python/
   backend.py                semantic_search() — runtime
-  build_embeddings.py       bakes model + .npy + .npz from the source CSVs
+  build_embeddings.py       reads config.yml; bakes model + .npy + .npz + manifest.txt
   model/                    ONNX model + tokenizer (downloaded by build script)
 
 data/
-  dd-abcd-6_0.parquet       UI table (full dictionary, snappy-compressed)
-  embeddings/               *.npy (fp16 embeddings) + *.npz (domain + label arrays)
+  dd-abcd-7_0.parquet       UI table for the active release (snappy-compressed)
+  embeddings/               *.npy (fp16 embeddings) + *.npz (metadata) + manifest.txt
   *.csv                     raw source CSVs — gitignored, build inputs only
 
 setup.sh / run.sh / deploy.sh
@@ -63,13 +76,13 @@ The dictionary release drives both the deployment bundle size and the runtime me
 
 ### Bundled data on disk (`data/`)
 
-| File                      |     6.0 |     7.0 |          Δ |
-| ------------------------- | ------: | ------: | ---------: |
-| `dd-abcd-*.parquet`       | 6.75 MB | 5.01 MB | −1.74 MB   |
-| `embeddings_imag.npy`     | 60.94 MB | 68.63 MB | +7.69 MB |
-| `embeddings_noimag.npy`   | 19.55 MB | 27.15 MB | +7.60 MB |
-| `metadata_imag.npz`       | 0.64 MB | 0.77 MB | +0.13 MB   |
-| `metadata_noimag.npz`     | 0.26 MB | 0.39 MB | +0.13 MB   |
+| File                      |     6.0      |     7.0      |          Δ |
+| ------------------------- | -----------: | -----------: | ---------: |
+| `dd-abcd-*.parquet`       | 6.75 MB      | 5.01 MB      | −1.74 MB   |
+| `embeddings_imag.npy`     | 60.94 MB     | 68.63 MB     | +7.69 MB   |
+| `embeddings_noimag.npy`   | 19.55 MB     | 27.15 MB     | +7.60 MB   |
+| `metadata_imag.npz`       | 0.64 MB      | 0.77 MB      | +0.13 MB   |
+| `metadata_noimag.npz`     | 0.26 MB      | 0.39 MB      | +0.13 MB   |
 | **Total bundled data**    | **88.14 MB** | **101.95 MB** | **+13.81 MB (+15.7%)** |
 
 The 7.0 parquet is smaller despite containing more rows (fewer columns retained / better compression).

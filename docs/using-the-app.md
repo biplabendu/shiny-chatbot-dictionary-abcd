@@ -2,7 +2,7 @@
 
 [TOC]
 
-The app is divided into three main areas: a **left sidebar** for entering your search, a **main results table** for exploring matches, and a **right sidebar** for refining and exporting what you find.
+The app is divided into three main areas: a **left sidebar** for entering your search, a **main results table** (the *Explore* tab) for browsing matches, and a **right sidebar** for refining and exporting what you find. The page header shows the active dictionary release (e.g. *ABCD Data Dictionary Semantic Search (7.0)*), parsed from `config.yml` at startup.
 
 ## Running a search
 
@@ -12,48 +12,59 @@ The app is divided into three main areas: a **left sidebar** for entering your s
 
 3. Choose a **corpus** from the model selector below the search button:
 
-    | Option | Corpus | Variables |
+    | Option | Corpus | Variables (7.0) |
     |---|---|---|
-    | ChatBot Pro (no imaging) | Core dictionary only | ~26,000 |
-    | ChatBot Pro Max Ultra (all) | Core + imaging variables | ~83,000 |
+    | ChatBot Pro (no imaging) | Core dictionary only | ~37,000 |
+    | ChatBot Pro Max Ultra (all) | Core + imaging variables | ~94,000 |
 
     Use *ChatBot Pro* for most queries. Switch to *Max Ultra* only when you are specifically looking for imaging-related variables.
 
-While the search runs, the button label changes to "Searching…" and a brief dialog confirms the query is in progress.
+While the search runs, the button label changes to "Searching…" and a brief dialog confirms the query is in progress. On narrow viewports (≤ 768 px), both sidebars auto-collapse once results arrive so the table can fill the screen; each sidebar's edge arrow toggles it back open.
 
 ## Reading the results table
 
-Results appear in the **Explore** tab, ranked by similarity score (highest first). Key columns:
+Results appear in the **Explore** tab, ranked by similarity score (highest first). The desktop view shows a curated 8-column set:
 
 | Column | What it shows |
 |---|---|
 | **Score** | Cosine similarity to your query (0–1). Higher means a closer match. |
 | **Variable Name** | Short machine-readable identifier (e.g., `cbcl_scr_syn_anxdep_t`). |
 | **Description** | Human-readable label from the ABCD data dictionary. |
-| **Source** | The instrument or module the variable belongs to. |
 | **Domain** | Thematic grouping (e.g., *Mental Health*, *Physical Health*). |
+| **Sub-Domain** | Finer-grained category within a domain. |
+| **Source** | The instrument or module the variable belongs to. |
+| **Type** | Variable type (e.g., `numeric`, `string`). |
+| **Type Level** | Sub-classification within the type. |
+
+On mobile (≤ 768 px), the table is automatically reduced to **Variable Name** + **Description** to stay readable.
 
 The table also supports **column-level filtering** (input boxes under each header), a **full-table search** box (top-right of the table), **column resizing**, and **pagination**.
+
+### Row details modal
+
+Click any row to open a modal listing **every column** in the dictionary for that variable (the curated 8 first, then everything else). This is the only way to see fields like `notes`, `value_range`, or instrument-specific metadata that aren't part of the default table view.
+
+The selection checkbox at the start of each row is for the *Delete Selected Rows* action (see below) and does **not** open the modal.
 
 ## Refining results
 
 The **Refine Results** panel on the right lets you narrow the result set after a search.
 
-### Source and Domain filters
+### Filters
 
-Uncheck any **Source** or **Domain** entries to hide those rows. Use **Select All / Deselect All** to toggle an entire group at once. These filters apply on top of the search — running a new search resets them.
+Three searchable multi-select dropdowns let you restrict results by **Source**, **Domain**, and **Variable Type**. Leaving a filter empty means "no restriction on this dimension"; selecting one or more values keeps only matching rows. Click the *×* next to a chip to remove that value, or open the dropdown to add more. Filters compose with the similarity search and with each other; running a new search does **not** clear them.
 
 ### Deleting rows
 
-Click any row to select it (hold Shift to range-select, Ctrl/Cmd to add individual rows). Press **Delete Selected Rows** to remove them from the current result set. Deletions persist until you run a new search.
+Use each row's selection checkbox to mark it (multi-select supported). Press **Delete Selected Rows** to remove them from the current result set. Deletions persist until you run a new search.
 
 ### Downloading results
 
-Click **Download as CSV** to export the currently visible columns as `search_results.csv`. If the **Show only name column** view is active, only the `name` column is exported.
+Click **Download as CSV** to export the **currently visible columns** as `search_results.csv`. The CSV reflects whatever view is active — desktop's curated 8 columns by default, only the `name` column if the *Show only name column* toggle is on, or the mobile 2-column view on small screens.
 
 ### Show only name column
 
-The **Show only name column** button hides all columns except **Variable Name**, giving a compact list useful for copying a variable selection. Click it again to restore all columns.
+The **Show only name column** button toggles between the default 8-column view and a one-column (variable name only) view. Useful for copying a tight list of variable names to paste elsewhere. Click again to restore the default columns.
 
 ## Loading results into R
 

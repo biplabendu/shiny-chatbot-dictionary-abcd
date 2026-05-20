@@ -4,6 +4,37 @@ These are real failures we hit while building and deploying this app. Useful rea
 
 [TOC]
 
+## App refuses to start: "Embeddings/config mismatch"
+
+**Symptom** (R console or server log):
+
+```
+Error: Embeddings/config mismatch: config.yml points to 'dd-abcd-7_0.parquet'
+but embeddings were built for 'dd-abcd-6_0.parquet'. Run ./setup.sh to rebuild.
+```
+
+**Cause:** `config.yml` was bumped to a new dictionary release but `./setup.sh` was not re-run, so the `.npy`/`.npz` artifacts on disk are still encoded against the previous parquet. `app.R` cross-checks `config.yml` against `data/embeddings/manifest.txt` at startup and refuses to launch on a mismatch — otherwise the UI would show the new version's title bar while the search returned rows from the old corpus.
+
+**Fix:**
+
+```bash
+./setup.sh    # rebuilds embeddings + rewrites data/embeddings/manifest.txt
+```
+
+`deploy.sh` performs the same check before bundling, so the mismatch is caught before it ships.
+
+## App refuses to start: "Missing data/&lt;parquet&gt;"
+
+**Symptom:**
+
+```
+Error: Missing data/dd-abcd-7_0.parquet - run ./setup.sh to build artifacts.
+```
+
+**Cause:** `config.yml`'s `dictionary.parquet` names a file that isn't in `data/`. Either the parquet was deleted, or `config.yml` was edited to point at a release that has not been produced yet.
+
+**Fix:** Place the parquet at `data/<that-filename>` (see [`data/Readme.md`](https://github.com/biplabendu/shiny-chatbot-dictionary-abcd/blob/main/data/Readme.md)), then run `./setup.sh`.
+
 ## App fails to start: "Suitable Python installation for creating a venv not found"
 
 **Symptom** (server log):
@@ -80,7 +111,7 @@ Three implications:
 2. **No nested paths.** `data/dd-abcd-6_0.csv` in a top-level `.rscignore` does nothing — `data` is the top-level entry, `dd-abcd-6_0.csv` is in the subdir. Add a `data/.rscignore`.
 3. **No globs.** `*.csv` won't expand. Enumerate each file.
 
-**Fix:** Use exact top-level names. For subdirectory exclusions, drop a `.rscignore` in that subdirectory:
+**Fix:** Use exact top-level names. For subdirectory exclusions, drop a `.rscignore` in that subdirectory. For things that genuinely need a glob (e.g. *"every `dd-abcd-*.parquet` except the active one"*), the filter lives in `deploy.sh` instead of `.rscignore`.
 
 ```text
 # .rscignore (top level)
@@ -93,10 +124,10 @@ deploy.sh
 shiny-chatbot-dictionary-abcd.Rproj
 .RData
 
-# data/.rscignore
-dd-abcd-6_0.csv
-dd-abcd-6_0_minimal.csv
-dd-abcd-6_0_minimal_noimag.csv
+# data/.rscignore — exclude the source CSVs for the active release
+dd-abcd-7_0.csv
+dd-abcd-7_0_minimal.csv
+dd-abcd-7_0_minimal_noimag.csv
 ```
 
 ## `__pycache__/` leaks into the bundle {#pycache-leaks}
@@ -139,7 +170,7 @@ Rscript -e '
 '
 ```
 
-Expected: ~16 files, ~116 MB.
+Expected for the active 7.0 build: ~16 files, ~125 MB.
 
 ## "No shinyapps.io account configured"
 

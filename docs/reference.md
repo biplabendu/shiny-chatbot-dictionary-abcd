@@ -31,6 +31,9 @@ Links to every external resource the project depends on — grouped by role.
 | fontawesome | Icons in buttons | [rstudio/fontawesome](https://github.com/rstudio/fontawesome) |
 | dplyr | Data manipulation | [tidyverse/dplyr](https://github.com/tidyverse/dplyr) |
 | stringr | String cleaning | [tidyverse/stringr](https://github.com/tidyverse/stringr) |
+| yaml | Reads `config.yml` at app startup | [vubiostat/r-yaml](https://github.com/vubiostat/r-yaml) |
+| jsonlite | Serializes column lists for the JS download / view-toggle buttons | [jeroen/jsonlite](https://github.com/jeroen/jsonlite) |
+| htmlwidgets | Embeds reactable's row-click JS handler | [ramnathv/htmlwidgets](https://github.com/ramnathv/htmlwidgets) |
 
 ## Python packages — runtime
 
@@ -49,7 +52,9 @@ Used by `python/build_embeddings.py` to produce the pre-assembled artifacts. Not
 | Package | Role | GitHub |
 |---|---|---|
 | huggingface_hub | Downloads model weights from HuggingFace | [huggingface/huggingface_hub](https://github.com/huggingface/huggingface_hub) |
-| pandas | CSV → Parquet conversion | [pandas-dev/pandas](https://github.com/pandas-dev/pandas) |
+| pandas | Reads the dictionary Parquet at build time | [pandas-dev/pandas](https://github.com/pandas-dev/pandas) |
+| fastparquet | Pandas engine used to read the dictionary Parquet | [dask/fastparquet](https://github.com/dask/fastparquet) |
+| PyYAML | Parses `config.yml` (model + dictionary settings) | [yaml/pyyaml](https://github.com/yaml/pyyaml) |
 
 ## Deployment tooling
 

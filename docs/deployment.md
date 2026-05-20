@@ -32,18 +32,22 @@
 What it does:
 
 1. Verifies `Rscript`, the `rsconnect` package, and your configured account.
-2. Cleans `python/__pycache__/` (rsconnect's hardcoded `__pycache__/` exclusion has a [trailing-slash bug](troubleshooting.md#pycache-leaks)).
-3. Checks all 13 required deploy artifacts exist.
-4. Calls `rsconnect::listDeploymentFiles()` and prints a bundle preview (top 10 files by size + total). Expected: **~16 files, ~116 MB**.
-5. Asks for confirmation (skipped if stdin isn't a TTY).
-6. Calls:
+2. Reads `dictionary.parquet` out of `config.yml` so it knows which release ships.
+3. Checks all 15 required deploy artifacts exist (app + config + Python backend + model + the active parquet + both embeddings/metadata pairs + manifest).
+4. Confirms `data/embeddings/manifest.txt` matches `config.yml` — refuses to ship a bundle that would crash on boot due to drift.
+5. Cleans `python/__pycache__/` (rsconnect's hardcoded `__pycache__/` exclusion has a [trailing-slash bug](troubleshooting.md#pycache-leaks)).
+6. Calls `rsconnect::listDeploymentFiles()`, filters out any non-active dictionary parquet and stray release CSVs (`.rscignore` can't express "all except the active release" — no globs), and prints a bundle preview (top 10 files by size + total). Expected: **~16 files, ~125 MB** for the 7.0 build.
+7. Asks for confirmation (skipped if stdin isn't a TTY).
+8. Calls:
 
     ```r
     rsconnect::deployApp(
+      appDir = '.',
+      appFiles = files,                  # filtered file list
       appName = 'abcd-dictionary',
       appTitle = 'ABCD Dictionary Search',
       account = 'biplabendu',
-      python = 'python_env/bin/python',   # <-- key: captures Python in manifest
+      python = 'python_env/bin/python',   # <-- captures Python in manifest
       forceUpdate = TRUE,
       launch.browser = FALSE
     )
@@ -79,7 +83,7 @@ The whole boot — R packages, Python install, package install, ONNX model load 
 
 ## What ships and what doesn't
 
-Controlled by `.rscignore` (top level) and `data/.rscignore` (per-subdir). rsconnect uses **exact-string `setdiff()`** against directory listings, not gitignore-style globs — so trailing slashes and nested paths don't match. See [Troubleshooting](troubleshooting.md#-rscignore-isn-t-honoring-my-patterns).
+Controlled by `.rscignore` (top level), `data/.rscignore` (per-subdir), **and** an in-`deploy.sh` filter that drops any non-active `dd-abcd-*.parquet` plus stray release CSVs (rsconnect uses **exact-string `setdiff()`** against directory listings, not gitignore-style globs — so trailing slashes, nested paths, and `*.csv` don't match). See [Troubleshooting](troubleshooting.md#-rscignore-isn-t-honoring-my-patterns).
 
 Top-level `.rscignore` excludes:
 
@@ -88,9 +92,14 @@ Top-level `.rscignore` excludes:
 - `*.Rproj`, `.RData`
 - Root-level duplicate / dummy CSVs
 
-`data/.rscignore` excludes the three source CSVs (build inputs only; the runtime uses Parquet and `.npy`/`.npz`).
+`data/.rscignore` excludes the source CSVs for the currently active build (build inputs only; the runtime uses Parquet and `.npy`/`.npz`).
 
-Final deploy bundle: **16 files, 116 MB**, with the largest items being the imaging-corpus embedding (64 MB), the ONNX model (23 MB), and the noimag embedding (20 MB).
+`deploy.sh` additionally filters out:
+
+- Any `dd-abcd-*.parquet` other than the one named in `config.yml` (e.g. an old 6.0 parquet left in `data/` won't ship alongside 7.0).
+- Any stray `dd-abcd-*.csv` at the repo root or under `data/`.
+
+Final deploy bundle: **~16 files, ~125 MB** (7.0), with the largest items being the imaging-corpus embedding (~69 MB), the ONNX model (~23 MB), and the noimag embedding (~27 MB).
 
 ## Watching the deploy
 
@@ -120,7 +129,7 @@ If the log streams stop *before* "Listening on…", see [Troubleshooting](troubl
 
 ## Sanity-checking the bundle before deploying
 
-`deploy.sh` already prints a preview, but you can also run it standalone:
+`deploy.sh` already prints a preview, but you can also run it standalone (this won't replicate the in-script "drop non-active parquet" filter — `deploy.sh` is the canonical view):
 
 ```r
 Rscript -e '
@@ -131,7 +140,7 @@ Rscript -e '
 '
 ```
 
-Confirm no raw CSVs, `sanity-chks/`, `python/__pycache__/`, or `.RData` appear. If something leaks, add the **exact directory entry name** (no trailing slash, no nested path) to `.rscignore`.
+Confirm no raw CSVs, `sanity-chks/`, `python/__pycache__/`, or `.RData` appear, and only the active parquet is present. If something leaks, add the **exact directory entry name** (no trailing slash, no nested path) to `.rscignore`, or extend the filter inside `deploy.sh`.
 
 ## Updating the deployed app
 
