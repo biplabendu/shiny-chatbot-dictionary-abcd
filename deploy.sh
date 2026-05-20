@@ -63,16 +63,24 @@ fi
 ok "Account: $ACCOUNT"
 
 section "4. Checking deploy artifacts"
+[[ -f config.yml ]] || die "config.yml not found."
+# config.yml is the single source of truth for which dictionary release ships.
+PARQUET=$(sed -n 's/^[[:space:]]*parquet:[[:space:]]*\([^[:space:]#]*\).*/\1/p' config.yml | head -n 1)
+[[ -n "$PARQUET" ]] || die "Could not parse dictionary.parquet from config.yml"
+ok "Active dictionary: ${PARQUET}"
+
 required=(
   app.R
   .Rprofile
   .rscignore
+  config.yml
   requirements.txt
   renv.lock
   python/backend.py
   python/model/model.onnx
   python/model/tokenizer.json
-  data/dd-abcd-6_0.parquet
+  "data/${PARQUET}"
+  data/embeddings/manifest.txt
   data/embeddings/embeddings_noimag.npy
   data/embeddings/embeddings_imag.npy
   data/embeddings/metadata_noimag.npz
@@ -85,22 +93,37 @@ done
 if (( ${#missing[@]} > 0 )); then
   die "Missing artifacts: ${missing[*]}. Run ./setup.sh first."
 fi
-ok "${#required[@]} required files present"
+
+# app.R refuses to start if manifest.txt disagrees with config.yml — catch
+# that here so we don't ship a bundle that crashes on boot.
+BUILT=$(head -n 1 data/embeddings/manifest.txt | tr -d '[:space:]')
+if [[ "$BUILT" != "$PARQUET" ]]; then
+  die "Embeddings/config drift: config.yml points to '${PARQUET}' but embeddings were built for '${BUILT}'. Run ./setup.sh."
+fi
+
+ok "${#required[@]} required files present, manifest in sync"
 
 section "5. Bundle preview (what rsconnect would upload)"
 # rsconnect's hardcoded "__pycache__/" exclusion has a trailing-slash bug
 # (setdiff exact match), so caches leak through. Nuke them first.
 find python -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
-Rscript -e '
-files <- rsconnect::listDeploymentFiles(".")
-sizes <- file.info(files)$size
+# Drop any non-active dictionary parquet and any raw release CSVs that
+# leaked into the bundle. .rscignore can't express "all but the active
+# release" (no globs), so the filter lives here next to the config read.
+Rscript -e "
+files <- rsconnect::listDeploymentFiles('.')
+keep_parquet <- 'data/${PARQUET}'
+is_other_parquet <- grepl('^data/dd-abcd-.*[.]parquet\$', files) & files != keep_parquet
+is_release_csv <- grepl('^(data/)?dd-abcd-.*[.]csv\$', files)
+files <- files[!is_other_parquet & !is_release_csv]
+sizes <- file.info(files)\$size
 total_mb <- sum(sizes, na.rm = TRUE) / 1e6
-cat(sprintf("  %d files, %.1f MB total\n", length(files), total_mb))
-cat("\n  Top files by size:\n")
+cat(sprintf('  %d files, %.1f MB total\n', length(files), total_mb))
+cat('\n  Top files by size:\n')
 ord <- order(-sizes)[seq_len(min(10, length(files)))]
-for (i in ord) cat(sprintf("    %7.2f MB  %s\n", sizes[i] / 1e6, files[i]))
-if (total_mb > 1024) cat(sprintf("\n  WARNING: bundle is %.1f MB — shinyapps.io free tier caps at 1 GB.\n", total_mb))
-'
+for (i in ord) cat(sprintf('    %7.2f MB  %s\n', sizes[i] / 1e6, files[i]))
+if (total_mb > 1024) cat(sprintf('\n  WARNING: bundle is %.1f MB — shinyapps.io free tier caps at 1 GB.\n', total_mb))
+"
 
 section "6. Confirm"
 if [[ -t 0 ]]; then
@@ -117,7 +140,15 @@ section "7. Deploying"
 ok "First deploy takes 5–15 minutes (installs R + Python deps on the server)."
 ok "Subsequent deploys are faster (caches are reused)."
 echo
-exec Rscript -e "rsconnect::deployApp(
+exec Rscript -e "
+files <- rsconnect::listDeploymentFiles('.')
+keep_parquet <- 'data/${PARQUET}'
+is_other_parquet <- grepl('^data/dd-abcd-.*[.]parquet\$', files) & files != keep_parquet
+is_release_csv <- grepl('^(data/)?dd-abcd-.*[.]csv\$', files)
+files <- files[!is_other_parquet & !is_release_csv]
+rsconnect::deployApp(
+  appDir = '.',
+  appFiles = files,
   appName = '${APP_NAME}',
   appTitle = '${APP_TITLE}',
   account = '${ACCOUNT}',
