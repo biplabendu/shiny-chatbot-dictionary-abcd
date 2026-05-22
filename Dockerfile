@@ -31,7 +31,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         python3.12 libpython3.12 \
-        pandoc \
+        pandoc curl libuv1 \
         libcurl4-openssl-dev libssl-dev libxml2-dev \
         libfontconfig1-dev libharfbuzz-dev libfribidi-dev \
         libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev \
