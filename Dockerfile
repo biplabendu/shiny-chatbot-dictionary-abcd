@@ -56,7 +56,7 @@ RUN Rscript --vanilla -e "install.packages('renv', repos='https://packagemanager
     && Rscript -e "renv::restore(prompt=FALSE, repos=c(PPM='https://packagemanager.posit.co/cran/__linux__/noble/latest'))"
 
 # Copy app source and pre-built artifacts
-COPY app.R requirements.txt ./
+COPY app.R requirements.txt config.yml ./
 COPY python/ python/
 COPY www/ www/
 COPY data/ data/
