@@ -61,5 +61,5 @@ COPY python/ python/
 COPY www/ www/
 COPY data/ data/
 
-EXPOSE 8000
-CMD ["R", "-e", "shiny::runApp('/app', host='0.0.0.0', port=8000)"]
+EXPOSE 7860
+CMD ["R", "-e", "shiny::runApp('/app', host='0.0.0.0', port=7860)"]
