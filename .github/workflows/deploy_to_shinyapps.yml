@@ -45,8 +45,18 @@ jobs:
           python_env/bin/python -m pip install --upgrade pip
           python_env/bin/python -m pip install -r requirements.txt
 
+      # Install from the RSPM binary repo (RSPM env, set by setup-r), not
+      # source cloud CRAN: the source build needs rsconnect's openssl/curl
+      # deps to compile, and install.packages only WARNS on failure -- which
+      # is how a missing rsconnect slipped through to setAccountInfo. Verify
+      # it loaded so a failed install stops the job here, loudly.
       - name: Install rsconnect
-        run: Rscript -e 'utils::install.packages("rsconnect", repos = "https://cloud.r-project.org")'
+        run: |
+          Rscript -e '
+            repo <- Sys.getenv("RSPM", "https://packagemanager.posit.co/cran/__linux__/noble/latest")
+            utils::install.packages("rsconnect", repos = repo)
+            if (!requireNamespace("rsconnect", quietly = TRUE)) stop("rsconnect failed to install")
+          '
 
       - name: Configure shinyapps.io account
         run: |
