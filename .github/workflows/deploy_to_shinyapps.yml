@@ -37,7 +37,7 @@ jobs:
           python_env/bin/python -m pip install -r requirements.txt
 
       - name: Install rsconnect
-        run: Rscript -e 'install.packages("rsconnect", repos = "https://cloud.r-project.org")'
+        run: Rscript -e 'utils::install.packages("rsconnect", repos = "https://cloud.r-project.org")'
 
       - name: Configure shinyapps.io account
         run: |
