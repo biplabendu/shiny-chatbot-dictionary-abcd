@@ -1,0 +1,49 @@
+name: Deploy to shinyapps.io
+
+on:
+  push:
+    branches:
+      - main
+  # Allows you to manually trigger the deploy from the GitHub Actions tab
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: '4.6.0'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # deploy.sh hardcodes python_env/bin/python as the interpreter for
+      # rsconnect::deployApp(). This venv is gitignored (build output), so it
+      # must exist before deploy.sh runs. We only install the runtime deps
+      # from requirements.txt here -- the model + embeddings are already
+      # committed build artifacts (see python/model/, data/embeddings/) and
+      # are not rebuilt in CI.
+      - name: Create python_env
+        run: |
+          python -m venv python_env
+          python_env/bin/python -m pip install --upgrade pip
+          python_env/bin/python -m pip install -r requirements.txt
+
+      - name: Install rsconnect
+        run: Rscript -e 'install.packages("rsconnect", repos = "https://cloud.r-project.org")'
+
+      - name: Configure shinyapps.io account
+        run: |
+          Rscript -e "rsconnect::setAccountInfo(name='${{ secrets.SHINYAPPS_ACCOUNT }}', token='${{ secrets.SHINYAPPS_TOKEN }}', secret='${{ secrets.SHINYAPPS_SECRET }}')"
+
+      - name: Deploy to shinyapps.io
+        env:
+          SHINYAPPS_ACCOUNT: ${{ secrets.SHINYAPPS_ACCOUNT }}
+        run: ./deploy.sh
