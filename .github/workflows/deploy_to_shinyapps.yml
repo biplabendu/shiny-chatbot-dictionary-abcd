@@ -62,6 +62,21 @@ jobs:
         run: |
           Rscript -e "rsconnect::setAccountInfo(name='${{ secrets.SHINYAPPS_ACCOUNT }}', token='${{ secrets.SHINYAPPS_TOKEN }}', secret='${{ secrets.SHINYAPPS_SECRET }}')"
 
+      # renv.lock records 35 packages with "Repository": "CRAN" but 35 with
+      # the raw URL "https://packagemanager.posit.co/cran/latest". rsconnect
+      # resolves each package's Repository against the *named* repos in the
+      # lockfile (only "CRAN" is named), so the URL-valued entries resolve to
+      # nothing and its parseRenvDependencies dies with "subscript out of
+      # bounds". Normalize those to the "CRAN" name on the runner only -- the
+      # committed renv.lock is left as-is.
+      - name: Normalize renv.lock repository names
+        run: |
+          sed -i 's#"Repository": "https://packagemanager.posit.co/cran/latest"#"Repository": "CRAN"#g' renv.lock
+          if grep -q '"Repository": "https://packagemanager.posit.co/cran/latest"' renv.lock; then
+            echo "renv.lock still has URL-form Repository values" >&2
+            exit 1
+          fi
+
       - name: Deploy to shinyapps.io
         env:
           SHINYAPPS_ACCOUNT: ${{ secrets.SHINYAPPS_ACCOUNT }}
