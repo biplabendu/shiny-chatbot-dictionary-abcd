@@ -118,6 +118,17 @@ ui <- page_fillable(
         }
       });
 
+      // Cap the search query at 250 characters: truncate live input and keep a
+      // running character count in the helper text below the textarea.
+      var QUERY_CHAR_LIMIT = 250;
+      $(document).on('input', '#search_query', function() {
+        if (this.value.length > QUERY_CHAR_LIMIT) {
+          this.value = this.value.slice(0, QUERY_CHAR_LIMIT);
+          $(this).trigger('change');
+        }
+        $('#search_query_count').text(this.value.length + ' / ' + QUERY_CHAR_LIMIT + ' characters');
+      });
+
       // Report viewport width to Shiny so the server can branch on mobile.
       function _reportWidth() {
         if (window.Shiny && Shiny.setInputValue) {
@@ -167,10 +178,11 @@ ui <- page_fillable(
       width = 320,
       card_header("Search Parameters"),
       
-      textAreaInput("search_query", "Describe what you are looking for:", 
+      textAreaInput("search_query", "Describe what you are looking for:",
                     placeholder = "e.g., bullying at school, sleep disorders...",
                     height = "150px"),
-      
+      helpText(span(id = "search_query_count", "0 / 250 characters")),
+
       # [MERGED] Slider with ui branch defaults (value = 0.3)
       sliderInput("cutoff", "Similarity Threshold:", 
                   min = 0.2, max = 1.0, value = 0.3, step = 0.05),
@@ -345,6 +357,15 @@ server <- function(input, output, session) {
   # --- 1. SEARCH EVENT ---
   observeEvent(input$run_search, {
     req(input$search_query)
+
+    # Enforce the 250-character cap server-side (the client-side JS is best-effort).
+    if (nchar(input$search_query) > 250) {
+      showNotification(
+        "Please limit your query to 250 characters or fewer.",
+        type = "error"
+      )
+      return()
+    }
 
     # On mobile, auto-collapse BOTH sidebars so the table fills the screen.
     # The bslib collapse-toggle (small arrow on each sidebar's edge) lets
