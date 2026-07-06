@@ -108,7 +108,15 @@ ui <- page_fillable(
   
   tags$head(
     # All app styling lives in www/app.css (Shiny serves www/ at the app root).
-    tags$link(rel = "stylesheet", type = "text/css", href = "app.css"),
+    # Append the file's mtime as a cache-busting query string so browsers fetch
+    # the current CSS after each edit instead of serving a stale cached copy.
+    tags$link(
+      rel = "stylesheet", type = "text/css",
+      href = {
+        mt <- suppressWarnings(file.mtime("www/app.css"))
+        if (is.na(mt)) "app.css" else paste0("app.css?v=", as.integer(mt))
+      }
+    ),
 
     tags$script(HTML(paste0("
       $(document).on('keydown', '#search_query', function(e) {
