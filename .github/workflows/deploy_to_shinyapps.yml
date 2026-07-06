@@ -10,6 +10,15 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      # Skip the project .Rprofile for every Rscript call in this job
+      # (including those spawned inside deploy.sh). Its renv activation is
+      # meant for local dev only -- on the runner it would (a) crash at
+      # startup calling an unqualified install.packages("renv") before utils
+      # is attached, and (b) repoint .libPaths() at the gitignored project
+      # library, hiding the rsconnect we install into R_LIBS_USER. renv
+      # restore happens server-side on shinyapps.io from renv.lock.
+      R_PROFILE_USER: /dev/null
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
