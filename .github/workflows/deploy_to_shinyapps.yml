@@ -28,6 +28,16 @@ jobs:
         with:
           r-version: '4.6.0'
 
+      # renv::restore installs ~60 packages as PPM binaries but builds the few
+      # whose lockfile version differs from PPM-latest from source; of those,
+      # openssl needs libssl headers (the rest need only the compiler toolchain
+      # that the runner already has). libcurl is cheap insurance for the HTTP
+      # stack. Runtime .so's for the binary packages are already on the image.
+      - name: Install system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev libcurl4-openssl-dev
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -45,37 +55,31 @@ jobs:
           python_env/bin/python -m pip install --upgrade pip
           python_env/bin/python -m pip install -r requirements.txt
 
-      # Install from the RSPM binary repo (RSPM env, set by setup-r), not
-      # source cloud CRAN: the source build needs rsconnect's openssl/curl
-      # deps to compile, and install.packages only WARNS on failure -- which
-      # is how a missing rsconnect slipped through to setAccountInfo. Verify
-      # it loaded so a failed install stops the job here, loudly.
-      - name: Install rsconnect
+      # Install renv from the RSPM binary repo (RSPM env, set by setup-r) so
+      # renv::restore is available. rsconnect itself is NOT installed here --
+      # it is in renv.lock (1.8.0) and gets installed by the restore step
+      # below, at the exact version the lockfile pins.
+      - name: Install renv
         run: |
           Rscript -e '
             repo <- Sys.getenv("RSPM", "https://packagemanager.posit.co/cran/__linux__/noble/latest")
-            utils::install.packages("rsconnect", repos = repo)
-            if (!requireNamespace("rsconnect", quietly = TRUE)) stop("rsconnect failed to install")
+            utils::install.packages("renv", repos = repo)
+            if (!requireNamespace("renv", quietly = TRUE)) stop("renv failed to install")
           '
+
+      # rsconnect::deployApp captures dependencies from renv.lock and aborts
+      # unless every lockfile package is installed locally at the SAME version
+      # (it reads each package's DESCRIPTION; a missing one made parseRenv-
+      # Dependencies die with "subscript out of bounds"). Restore the exact
+      # lockfile versions into .libPaths()[1] (= R_LIBS_USER) -- the library
+      # the deploy step's Rscript sees, since renv activation is disabled in
+      # this job. This also installs rsconnect (1.8.0) and all app packages.
+      - name: Restore R packages from renv.lock
+        run: Rscript -e 'renv::restore(lockfile = "renv.lock", library = .libPaths()[1], prompt = FALSE)'
 
       - name: Configure shinyapps.io account
         run: |
           Rscript -e "rsconnect::setAccountInfo(name='${{ secrets.SHINYAPPS_ACCOUNT }}', token='${{ secrets.SHINYAPPS_TOKEN }}', secret='${{ secrets.SHINYAPPS_SECRET }}')"
-
-      # renv.lock records 35 packages with "Repository": "CRAN" but 35 with
-      # the raw URL "https://packagemanager.posit.co/cran/latest". rsconnect
-      # resolves each package's Repository against the *named* repos in the
-      # lockfile (only "CRAN" is named), so the URL-valued entries resolve to
-      # nothing and its parseRenvDependencies dies with "subscript out of
-      # bounds". Normalize those to the "CRAN" name on the runner only -- the
-      # committed renv.lock is left as-is.
-      - name: Normalize renv.lock repository names
-        run: |
-          sed -i 's#"Repository": "https://packagemanager.posit.co/cran/latest"#"Repository": "CRAN"#g' renv.lock
-          if grep -q '"Repository": "https://packagemanager.posit.co/cran/latest"' renv.lock; then
-            echo "renv.lock still has URL-form Repository values" >&2
-            exit 1
-          fi
 
       - name: Deploy to shinyapps.io
         env:

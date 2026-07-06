@@ -5,6 +5,6 @@ account: biplabendu
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 17351655
-bundleId: 12019848
+bundleId: 12230149
 url: https://biplabendu.shinyapps.io/abcd-dictionary/
 version: 1
