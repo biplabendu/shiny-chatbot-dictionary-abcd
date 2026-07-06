@@ -1,8 +1,19 @@
+---
+title: Shiny Chatbot Dictionary Abcd
+emoji: 📚
+colorFrom: blue
+colorTo: yellow
+sdk: docker
+pinned: false
+license: lgpl-3.0
+---
+
 # ABCD Dictionary Search
 
 Semantic search over the [ABCD Study](https://abcdstudy.org/) data dictionary. Type a phrase like *"screen time on weekends"* or *"BMI"* — the app returns the variables in the dictionary whose labels mean roughly the same thing, ranked by cosine similarity.
 
-**Live demo:** [biplabendu.shinyapps.io/abcd-dictionary](https://biplabendu.shinyapps.io/abcd-dictionary/)
+**App [ ShinyApps ]:** <https://biplabendu.shinyapps.io/abcd-dictionary/>
+**App [ Hugging Face ]:** <https://lezhang100-shiny-chatbot-dictionary-abcd.hf.space/>
 
 **Documentation:** [biplabendu.github.io/shiny-chatbot-dictionary-abcd](https://biplabendu.github.io/shiny-chatbot-dictionary-abcd/)
 
