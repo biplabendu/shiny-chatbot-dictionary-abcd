@@ -12,8 +12,7 @@ license: lgpl-3.0
 
 Semantic search over the [ABCD Study](https://abcdstudy.org/) data dictionary. Type a phrase like *"screen time on weekends"* or *"BMI"* — the app returns the variables in the dictionary whose labels mean roughly the same thing, ranked by cosine similarity.
 
-**App [ ShinyApps ]:** <https://biplabendu.shinyapps.io/abcd-dictionary/>
-**App [ Hugging Face ]:** <https://lezhang100-shiny-chatbot-dictionary-abcd.hf.space/>
+**App:** <http://www.beepboopstats.com/abcd-dictionary/>
 
 **Documentation:** [biplabendu.github.io/shiny-chatbot-dictionary-abcd](https://biplabendu.github.io/shiny-chatbot-dictionary-abcd/)
 
