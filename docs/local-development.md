@@ -112,10 +112,10 @@ On shinyapps.io, `Sys.info()[["user"]] == "shiny"` is true, the local block is s
 
 ## Cleaning up
 
-`./clean_embeddings_pythonpkgs.sh` interactively removes `data/embeddings/`, `python/model/`, and/or `python_env/`. Pair it with `./setup.sh` to rebuild from scratch:
+`./clean_artifacts.sh` interactively removes `data/embeddings/`, `python/model/`, and/or `python_env/`. Pair it with `./setup.sh` to rebuild from scratch:
 
 ```bash
-./clean_embeddings_pythonpkgs.sh    # answer 'y' to both prompts
+./clean_artifacts.sh    # answer 'y' to both prompts
 ./setup.sh                          # full rebuild (~3 min)
 ```
 

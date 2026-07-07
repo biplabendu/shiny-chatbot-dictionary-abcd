@@ -16,13 +16,7 @@ Semantic search over the [ABCD Study](https://abcdstudy.org/) data dictionary. T
 
 **Documentation:** [biplabendu.github.io/shiny-chatbot-dictionary-abcd](https://biplabendu.github.io/shiny-chatbot-dictionary-abcd/)
 
-## How it works (in one paragraph)
-
-The app is R Shiny on top of a Python search backend, bridged by [reticulate](https://rstudio.github.io/reticulate/). Queries are encoded with [MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2) quantized to ONNX int8 (~23 MB, runs on CPU via [onnxruntime](https://onnxruntime.ai/)). Corpus embeddings are **pre-baked** to fp16 NumPy arrays at build time, so search at runtime is a single matmul. The dictionary table for the UI is stored as Parquet and read by [`nanoparquet`](https://nanoparquet.r-lib.org/). A top-level `config.yml` is the single source of truth — `setup.sh`, `python/build_embeddings.py`, and `app.R` all read it, and the embeddings carry a `manifest.txt` recording the parquet they were built against so the UI refuses to start on drift. See [How it works](https://biplabendu.github.io/shiny-chatbot-dictionary-abcd/how-it-works/) for the full pipeline.
-
 ## Quickstart
-
-Tested on macOS. Requires Python 3.12 and R ≥ 4.5 on `PATH` (the scripts will offer to install them via Homebrew if missing).
 
 ```bash
 git clone https://github.com/biplabendu/shiny-chatbot-dictionary-abcd.git
@@ -36,9 +30,11 @@ cd shiny-chatbot-dictionary-abcd
 
 Re-run `./setup.sh` whenever `config.yml`, `requirements.txt`, or the dictionary parquet changes.
 
+> Tested on macOS. Requires Python 3.12 and R ≥ 4.5 on `PATH` (the scripts will offer to install them via Homebrew if missing).
+
 ## Switching ABCD releases
 
-Edit `config.yml` and point `dictionary.parquet` at a different file in `data/`, then re-run `./setup.sh`. `app.R` reads `config.yml` at startup, parses the version out of the filename (`dd-abcd-7_0.parquet` → `7.0`), and shows it in the title bar and header banner.
+To update the dictionary, edit `config.yml` to point `dictionary.parquet` at a different file in `data/`, then re-run `./setup.sh`. The app reads the version from the filename at startup (`dd-abcd-7_0.parquet` → `7.0`) and shows it in the title bar and header banner.
 
 ```yaml
 dictionary:
@@ -49,13 +45,17 @@ dictionary:
 
 ## Deploying to shinyapps.io
 
+The deploy script verifies prerequisites, cross-checks `data/embeddings/manifest.txt` against `config.yml`, previews the bundle, and runs `rsconnect::deployApp` with manifest-based Python provisioning. See [Deployment](https://biplabendu.github.io/shiny-chatbot-dictionary-abcd/deployment/) for the full walkthrough and troubleshooting tips.
+
 ```bash
 # One-time, in R:
 #   rsconnect::setAccountInfo(name=..., token=..., secret=...)
 ./deploy.sh
 ```
 
-The deploy script verifies prerequisites, cross-checks `data/embeddings/manifest.txt` against `config.yml`, previews the bundle, and runs `rsconnect::deployApp` with manifest-based Python provisioning. See [Deployment](https://biplabendu.github.io/shiny-chatbot-dictionary-abcd/deployment/) for the full walkthrough and troubleshooting tips.
+## How it works
+
+The app is R Shiny on top of a Python search backend, bridged by [reticulate](https://rstudio.github.io/reticulate/). Queries are encoded with [MiniLM-L6-v2](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2) quantized to ONNX int8 (~23 MB, runs on CPU via [onnxruntime](https://onnxruntime.ai/)). Corpus embeddings are precomputed at build time as fp16 NumPy arrays, so runtime search reduces to a single matrix multiply. The dictionary table for the UI is stored as Parquet and read by [`nanoparquet`](https://nanoparquet.r-lib.org/). A top-level `config.yml` is the single source of truth for `setup.sh`, `python/build_embeddings.py`, and `app.R`. The embeddings carry a `manifest.txt` recording which Parquet file they were built against — if they drift, the app refuses to start. See [How it works](https://biplabendu.github.io/shiny-chatbot-dictionary-abcd/how-it-works/) for the full pipeline.
 
 ## Repo layout
 
@@ -65,6 +65,8 @@ app.R                       Shiny UI + reticulate bridge — reads config.yml
 .Rprofile                   activates renv locally; deferred to manifest on shinyapps.io
 requirements.txt            Python runtime deps (onnxruntime, tokenizers, numpy)
 renv.lock                   R package versions
+Dockerfile                  container definition for Hugging Face Spaces
+mkdocs.yml                  documentation site config (deployed to GitHub Pages)
 
 www/
   app.css                   app styling (layout, brand polish, responsive rules)
@@ -73,20 +75,29 @@ www/
 python/
   backend.py                semantic_search() — runtime
   build_embeddings.py       reads config.yml; bakes model + .npy + .npz + manifest.txt
-  model/                    ONNX model + tokenizer (downloaded by build script)
+  model/                    ONNX model + tokenizer (downloaded by setup.sh)
 
 data/
-  dd-abcd-7_0.parquet       UI table for the active release (snappy-compressed)
+  dd-abcd-6_0.parquet       dictionary release 6.0 (snappy-compressed)
+  dd-abcd-7_0.parquet       dictionary release 7.0 (snappy-compressed)
   embeddings/               *.npy (fp16 embeddings) + *.npz (metadata) + manifest.txt
+  Readme.md                 instructions for obtaining and placing dictionary files
   *.csv                     raw source CSVs — gitignored, build inputs only
 
-setup.sh / run.sh / deploy.sh
-docs/  mkdocs.yml           documentation site (deployed to GitHub Pages)
+setup.sh                    one-time: build python_env, download model, bake artifacts
+run.sh                      start the app locally on http://127.0.0.1:4444
+deploy.sh                   verify prerequisites and deploy to shinyapps.io
+clean_artifacts.sh          remove generated artifacts (embeddings, python_env)
+
+docs/                       documentation source (MkDocs, deployed to GitHub Pages)
 ```
 
 ## Versions
 
-The dictionary release drives both the deployment bundle size and the runtime memory footprint. Comparison of the current build (ABCD 7.0) against the previously shipped build (6.0):
+Available releases: `dd-abcd-6_0.parquet`, `dd-abcd-7_0.parquet` (latest: **7.0**).
+
+<details>
+<summary>Bundle size and memory comparison (6.0 → 7.0)</summary>
 
 ### Bundled data on disk (`data/`)
 
@@ -101,7 +112,9 @@ The dictionary release drives both the deployment bundle size and the runtime me
 
 The 7.0 parquet is smaller despite containing more rows (fewer columns retained / better compression).
 
-### Embedding matrices in RAM (float16, 384-dim)
+### Embedding matrices in RAM
+
+Each corpus is loaded entirely into memory at startup as a matrix of vector embeddings; the table shows how the size of those matrices changed between releases.
 
 | Corpus | 6.0 shape    | 7.0 shape    | Row Δ              | RAM Δ    |
 | ------ | ------------ | ------------ | ------------------ | -------- |
@@ -111,6 +124,8 @@ The 7.0 parquet is smaller despite containing more rows (fewer columns retained 
 Resident memory for the embedding matrices increases by ~**15.3 MB**. Additional runtime memory (the parquet held in R, per-row UI structures) scales roughly with row count but was not measured here.
 
 **Bottom line:** moving from 6.0 to 7.0 adds ~14 MB to the deployed bundle (88 → 102 MB) and ~15 MB to embedding RAM, driven by 12.6% more imaging rows and 38.9% more non-imaging rows.
+
+</details>
 
 ## License
 

@@ -88,7 +88,7 @@ Controlled by `.rscignore` (top level), `data/.rscignore` (per-subdir), **and** 
 Top-level `.rscignore` excludes:
 
 - `sanity-chks/`, `.claude/`, `.dockerignore`, `Dockerfile`, `fly.toml`
-- `setup.sh`, `run.sh`, `deploy.sh`, `clean_embeddings_pythonpkgs.sh`
+- `setup.sh`, `run.sh`, `deploy.sh`, `clean_artifacts.sh`
 - `*.Rproj`, `.RData`
 - Root-level duplicate / dummy CSVs
 
