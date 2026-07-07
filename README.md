@@ -1,11 +1,5 @@
 ---
 title: Shiny Chatbot Dictionary Abcd
-emoji: 📚
-colorFrom: blue
-colorTo: yellow
-sdk: docker
-pinned: false
-license: lgpl-3.0
 ---
 
 # ABCD Dictionary Search
