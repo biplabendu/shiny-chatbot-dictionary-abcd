@@ -205,7 +205,7 @@ Rscript -e 'renv::install("nanoparquet"); renv::snapshot()'
 ## How to wipe state and rebuild
 
 ```bash
-./clean_embeddings_pythonpkgs.sh   # interactive — answer y to both prompts
+./clean_artifacts.sh   # interactive — answer y to both prompts
 rm -rf python_env                  # if clean script didn't remove it
 ./setup.sh
 ./run.sh

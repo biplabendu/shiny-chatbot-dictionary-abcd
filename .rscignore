@@ -11,7 +11,7 @@ sanity-chks
 .dockerignore
 Dockerfile
 fly.toml
-clean_embeddings_pythonpkgs.sh
+clean_artifacts.sh
 setup.sh
 run.sh
 deploy.sh
