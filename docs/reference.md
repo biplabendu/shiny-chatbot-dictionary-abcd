@@ -29,10 +29,11 @@ Links to every external resource the project depends on — grouped by role.
 | bslib | Bootstrap UI theming | [rstudio/bslib](https://github.com/rstudio/bslib) |
 | nanoparquet | Reads the Parquet dictionary | [r-lib/nanoparquet](https://github.com/r-lib/nanoparquet) |
 | fontawesome | Icons in buttons | [rstudio/fontawesome](https://github.com/rstudio/fontawesome) |
+| cicerone | Guided onboarding tour (driver.js wrapper) | [JohnCoene/cicerone](https://github.com/JohnCoene/cicerone) |
 | dplyr | Data manipulation | [tidyverse/dplyr](https://github.com/tidyverse/dplyr) |
 | stringr | String cleaning | [tidyverse/stringr](https://github.com/tidyverse/stringr) |
 | yaml | Reads `config.yml` at app startup | [vubiostat/r-yaml](https://github.com/vubiostat/r-yaml) |
-| jsonlite | Serializes column lists for the JS download / view-toggle buttons | [jeroen/jsonlite](https://github.com/jeroen/jsonlite) |
+| jsonlite | Serializes the hidden-column lists passed to the client-side JS | [jeroen/jsonlite](https://github.com/jeroen/jsonlite) |
 | htmlwidgets | Embeds reactable's row-click JS handler | [ramnathv/htmlwidgets](https://github.com/ramnathv/htmlwidgets) |
 
 ## Python packages — runtime

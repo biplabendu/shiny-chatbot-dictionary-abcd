@@ -4,6 +4,14 @@
 
 The app is divided into three main areas: a **left sidebar** for entering your search, a **main results table** (the *Explore* tab) for browsing matches, and a **right sidebar** for refining and exporting what you find. The page header shows the active dictionary release (e.g. *ABCD Data Dictionary Semantic Search (7.0)*), parsed from `config.yml` at startup.
 
+## Guided tour
+
+On your **first visit** a short interactive walkthrough starts automatically, highlighting each control in turn — the search box, similarity slider, model selector, search button, and the refine-panel actions and filters. It runs only once per browser (the "seen" flag is stored in `localStorage`).
+
+To replay it anytime, click **Take a tour** in the top-right of the header.
+
+The tour is desktop-only: on small screens (≤ 768 px) it is disabled and the button is hidden, because the sidebars are collapsed there and its highlight boxes would point at hidden controls.
+
 ## Running a search
 
 1. Type a phrase into the **"Describe what you are looking for"** box. Natural language works well — try *"screen time on weekends"*, *"anxiety symptoms"*, or just an acronym like *"BMI"*. Press **Enter** or click **Search Variables** to run.
@@ -19,7 +27,7 @@ The app is divided into three main areas: a **left sidebar** for entering your s
 
     Use *ChatBot Pro* for most queries. Switch to *Max Ultra* only when you are specifically looking for imaging-related variables.
 
-While the search runs, the button label changes to "Searching…" and a brief dialog confirms the query is in progress. On narrow viewports (≤ 768 px), both sidebars auto-collapse once results arrive so the table can fill the screen; each sidebar's edge arrow toggles it back open.
+While the search runs, the button label changes to "Searching…" and a brief dialog confirms the query is in progress. On narrow viewports (≤ 768 px), the moment you run a search both sidebars collapse and the results table expands to a full-screen view so it fills the display; each sidebar's edge arrow toggles it back open, and the full-screen view's *Close* button (top-right) returns to the normal layout.
 
 ## Reading the results table
 
@@ -36,7 +44,7 @@ Results appear in the **Explore** tab, ranked by similarity score (highest first
 | **Type** | Variable type (e.g., `numeric`, `string`). |
 | **Type Level** | Sub-classification within the type. |
 
-On mobile (≤ 768 px), the table is automatically reduced to **Variable Name** + **Description** to stay readable.
+On mobile (≤ 768 px), the table is automatically reduced to **Variable Name** + **Description**, and both columns shrink and wrap their text to fit the screen width instead of scrolling horizontally.
 
 The table also supports **column-level filtering** (input boxes under each header), a **full-table search** box (top-right of the table), **column resizing**, and **pagination**.
 
@@ -60,11 +68,11 @@ Use each row's selection checkbox to mark it (multi-select supported). Press **D
 
 ### Downloading results
 
-Click **Download as CSV** to export the **currently visible columns** as `search_results.csv`. The CSV reflects whatever view is active — desktop's curated 8 columns by default, only the `name` column if the *Show only name column* toggle is on, or the mobile 2-column view on small screens.
+Click **Download as CSV** to export the **currently visible columns** as `search_results.csv`. The CSV reflects whatever view is active — desktop's curated 8 columns by default, or the mobile 2-column view on small screens.
 
-### Show only name column
+### Copy variable names
 
-The **Show only name column** button toggles between the default 8-column view and a one-column (variable name only) view. Useful for copying a tight list of variable names to paste elsewhere. Click again to restore the default columns.
+Click **Copy Variable Names** to copy the variable names of your current results to the clipboard, **one per line** — ready to paste into an R script, a spreadsheet, or the NBDCtools snippet below. It copies the names of *all* matching rows (respecting any active column filters and full-table search), not just the current page. The button briefly confirms how many names were copied.
 
 ## Loading results into R
 

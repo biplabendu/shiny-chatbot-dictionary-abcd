@@ -22,7 +22,7 @@ flowchart LR
 
 The app has three layers plus a config layer:
 
-1. **R Shiny UI** (`app.R`) — UI, filters, table display via [reactable](https://glin.github.io/reactable/), Python bridge via [reticulate](https://rstudio.github.io/reticulate/).
+1. **R Shiny UI** (`app.R`) — UI, filters, table display via [reactable](https://glin.github.io/reactable/), Python bridge via [reticulate](https://rstudio.github.io/reticulate/). Styling lives in `www/app.css` and all client-side behavior (Enter-to-search, the guided tour, mobile layout tweaks, copy-to-clipboard) in `www/app.js`, both served from `www/`.
 2. **Python search backend** (`python/backend.py`) — query encoding + cosine ranking. Pure NumPy + onnxruntime + tokenizers; no `torch` or `pandas` at runtime.
 3. **Pre-assembled artifacts** (`python/model/`, `data/embeddings/`, `data/<dictionary>.parquet`) — produced once by `python/build_embeddings.py` and shipped with the deploy.
 4. **`config.yml` (single source of truth)** — names the active parquet release, the embedding model, and which columns to encode / keep as metadata. `setup.sh`, `build_embeddings.py`, and `app.R` all read it; `data/embeddings/manifest.txt` records which parquet the embeddings were built against so the UI can refuse to start on drift.

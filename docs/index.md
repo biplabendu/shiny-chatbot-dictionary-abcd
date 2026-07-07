@@ -27,7 +27,7 @@ At runtime, each search is a tokenize → ONNX inference → single matmul → t
 
 ## Where to go next
 
-- **[Using the app](using-the-app.md)** — Search, filters, row details, CSV export, and the NBDCtools handoff.
+- **[Using the app](using-the-app.md)** — The guided tour, search, filters, row details, CSV export, copying variable names, and the NBDCtools handoff.
 - **[How it works](how-it-works.md)** — Architecture diagram, file layout, and a walkthrough of a single search from keystroke to results table.
 - **[Local development](local-development.md)** — `setup.sh`, `run.sh`, and `config.yml` — what they do and how to extend them when source data or dependencies change.
 - **[Deployment](deployment.md)** — `deploy.sh` walkthrough, what the shinyapps.io manifest does, and how Python is provisioned on the server.

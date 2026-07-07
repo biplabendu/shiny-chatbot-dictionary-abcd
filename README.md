@@ -67,6 +67,10 @@ app.R                       Shiny UI + reticulate bridge — reads config.yml
 requirements.txt            Python runtime deps (onnxruntime, tokenizers, numpy)
 renv.lock                   R package versions
 
+www/
+  app.css                   app styling (layout, brand polish, responsive rules)
+  app.js                    client-side behavior (search shortcuts, tour, mobile, copy)
+
 python/
   backend.py                semantic_search() — runtime
   build_embeddings.py       reads config.yml; bakes model + .npy + .npz + manifest.txt
