@@ -6,6 +6,7 @@ library(reactable)
 library(bslib)
 library(fontawesome)
 library(nanoparquet)
+library(cicerone)
 
 # --- ENVIRONMENT CONFIG ---
 options(shiny.autoreload = TRUE)
@@ -64,8 +65,6 @@ choices_type_var <- if ("type_var" %in% names(dd)) unique(dd$type_var) %>% na.om
 
 # 2. JS Button Config (from ui branch)
 table_all_cols <- c("similarity", names(dd))
-table_hidden_cols <- setdiff(table_all_cols, "name")
-table_hidden_cols_json <- jsonlite::toJSON(table_hidden_cols, auto_unbox = TRUE)
 
 # Desktop view: curated 8 columns in this order. On row click, the modal
 # still shows every column (the visible 8 first, then the rest).
@@ -118,63 +117,38 @@ ui <- page_fillable(
       }
     ),
 
-    tags$script(HTML(paste0("
-      $(document).on('keydown', '#search_query', function(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          $('#run_search').click();
-        }
-      });
+    # Inject the data-driven hidden-column config for app.js. This is the only
+    # JS built from R values; it's pure JSON assignment (no risky escapes).
+    tags$script(HTML(paste0(
+      "window.ABCD_HIDDEN = {desktop: ", desktop_hidden_cols_json,
+      ", mobile: ", mobile_hidden_cols_json, "};"
+    ))),
 
-      // Cap the search query at 250 characters: truncate live input and keep a
-      // running character count in the helper text below the textarea.
-      var QUERY_CHAR_LIMIT = 250;
-      $(document).on('input', '#search_query', function() {
-        if (this.value.length > QUERY_CHAR_LIMIT) {
-          this.value = this.value.slice(0, QUERY_CHAR_LIMIT);
-          $(this).trigger('change');
-        }
-        $('#search_query_count').text(this.value.length + ' / ' + QUERY_CHAR_LIMIT + ' characters');
-      });
-
-      // Report viewport width to Shiny so the server can branch on mobile.
-      function _reportWidth() {
-        if (window.Shiny && Shiny.setInputValue) {
-          Shiny.setInputValue('window_width', window.innerWidth, {priority: 'event'});
-        }
+    # All client-side behavior lives in www/app.js (served at the app root),
+    # NOT inlined here — embedding JS in an R string turns every \\n, \\t and \"
+    # into an R escape, so a stray backslash silently breaks the whole script.
+    # mtime query string busts the browser cache after each edit (see app.css).
+    tags$script(
+      src = {
+        mt <- suppressWarnings(file.mtime("www/app.js"))
+        if (is.na(mt)) "app.js" else paste0("app.js?v=", as.integer(mt))
       }
-      $(document).on('shiny:connected', _reportWidth);
-      $(window).on('resize', _reportWidth);
-
-      // After the results table renders, apply the viewport-appropriate
-      // hidden-columns set so the table state is explicit (the CSV-download
-      // button reads state.hiddenColumns).
-      //   Desktop: hide everything except the curated 8 columns.
-      //   Mobile:  hide everything except `name` and `label`.
-      var DESKTOP_HIDDEN = ", desktop_hidden_cols_json, ";
-      var MOBILE_HIDDEN  = ", mobile_hidden_cols_json, ";
-      $(document).on('shiny:value', function(event) {
-        if (event.name !== 'results_table') return;
-        setTimeout(function() {
-          try {
-            var hidden = window.matchMedia('(max-width: 768px)').matches
-                       ? MOBILE_HIDDEN
-                       : DESKTOP_HIDDEN;
-            Reactable.setHiddenColumns('results_table', hidden);
-          } catch (e) { /* table not ready yet */ }
-        }, 150);
-      });
-
-    ")))
+    )
   ),
-  
+
+  # cicerone (driver.js) JS/CSS dependencies for the guided tour.
+  use_cicerone(),
+
   title = paste0("ABCD Semantic Search (", dictionary_version, ")"),
 
   # Header (brand-burgundy bar — see .app-header in www/app.css)
   div(
-    class = "app-header bg-primary text-white p-3 rounded-2 mb-2",
+    class = "app-header bg-primary text-white p-3 rounded-2 mb-2 d-flex justify-content-between align-items-center",
     h2(paste0("ABCD Data Dictionary Semantic Search (", dictionary_version, ")"),
-       class = "m-0")
+       class = "m-0"),
+    actionButton("start_tour", "Take a tour",
+                 icon = icon("circle-question"),
+                 class = "btn-light btn-sm flex-shrink-0")
   ),
 
   layout_sidebar(
@@ -192,8 +166,15 @@ ui <- page_fillable(
       helpText(span(id = "search_query_count", "0 / 250 characters")),
 
       # [MERGED] Slider with ui branch defaults (value = 0.3)
-      sliderInput("cutoff", "Similarity Threshold:", 
-                  min = 0.2, max = 1.0, value = 0.3, step = 0.05),
+      # Wrapped in an id'd div because sliderInput puts id="cutoff" on the
+      # original <input>, which ionRangeSlider hides (display:none) — a
+      # zero-size element the guided tour can't draw a highlight box around.
+      # The wrapper gives the tour a visible anchor spanning the whole control.
+      div(
+        id = "cutoff_step",
+        sliderInput("cutoff", "Similarity Threshold:",
+                    min = 0.2, max = 1.0, value = 0.3, step = 0.05)
+      ),
       
       helpText("Higher values = stricter matching."),
       
@@ -201,15 +182,21 @@ ui <- page_fillable(
       actionButton("run_search", "Search Variables", 
                    class = "btn-primary w-100 mb-2", icon = icon("magnifying-glass")),
       
-      selectizeInput(
-        "choose_model",
-        "Choose your champion:",
-        choices = c("ChatBot Pro (no imaging)" = "no_img",
-                    "ChatBot Pro Max Ultra (all)" = "all"),
-        selected = "no_img",
-        multiple = FALSE
+      # Wrapped in an id'd div so the guided tour has a visible anchor:
+      # selectize hides the original <select id="choose_model">, so the tour
+      # can't frame it directly (see the cutoff slider wrapper above).
+      div(
+        id = "choose_model_step",
+        selectizeInput(
+          "choose_model",
+          "Choose your champion:",
+          choices = c("ChatBot Pro (no imaging)" = "no_img",
+                      "ChatBot Pro Max Ultra (all)" = "all"),
+          selected = "no_img",
+          multiple = FALSE
+        )
       ),
-      
+
       # [HEAD] Explanatory Text (Preserved for UX)
       div(
         class = "small text-muted border-top pt-3",
@@ -227,6 +214,7 @@ ui <- page_fillable(
       nav_panel(
         "Explore",
         card(
+          id = "results_card",
           full_screen = TRUE,
           layout_sidebar(
             class = "no-gap",
@@ -255,24 +243,18 @@ ui <- page_fillable(
                 # Download CSV (JS Version from ui)
                 tags$button(
                   tagList(fontawesome::fa("download"), "Download as CSV"),
+                  id = "download_csv_btn",
                   class = "btn btn-success w-100",
                   onclick = "(function(){var state=Reactable.getState('results_table')||{};var hidden=state.hiddenColumns||[];var all=state.columns?state.columns.map(function(c){return c.id;}):Object.keys((state.data&&state.data[0])||{});var visible=all.filter(function(id){return hidden.indexOf(id)===-1;});Reactable.downloadDataCSV('results_table','search_results.csv',{columnIds:visible});})()"
                 ),
                 
-                # Toggle "name only" ↔ default 8-column view
+                # Copy the current results' variable names to the clipboard,
+                # one per line (see copyVariableNames() in the head script).
                 tags$button(
-                  "Show only name column",
+                  tagList(fontawesome::fa("clipboard"), "Copy Variable Names"),
+                  id = "copy_names_btn",
                   class = "btn btn-secondary w-100",
-                  onclick = paste0(
-                    "(function(){",
-                    "var ONLY_NAME=", table_hidden_cols_json, ";",
-                    "var DEFAULT=",   desktop_hidden_cols_json, ";",
-                    "Reactable.setHiddenColumns('results_table', function(prev){",
-                    "var same=prev.length===ONLY_NAME.length && ",
-                    "ONLY_NAME.every(function(c){return prev.indexOf(c)!==-1;});",
-                    "return same ? DEFAULT : ONLY_NAME;",
-                    "});})()"
-                  )
+                  onclick = "copyVariableNames(this)"
                 )
               ),
               
@@ -280,39 +262,51 @@ ui <- page_fillable(
               # Empty selection = no filter applied (include all rows).
               h6("Filters", class = "fw-bold text-uppercase text-primary small"),
 
-              selectizeInput(
-                "filter_source",
-                label = "Source",
-                choices = choices_source,
-                selected = NULL,
-                multiple = TRUE,
-                options = list(
-                  plugins = list("remove_button"),
-                  placeholder = "All sources (click to filter)"
+              # Each filter is wrapped in an id'd div so the guided tour can
+              # frame the visible selectize control (the id lives on the hidden
+              # <select>; see the cutoff slider / model wrappers above).
+              div(
+                id = "filter_source_step",
+                selectizeInput(
+                  "filter_source",
+                  label = "Source",
+                  choices = choices_source,
+                  selected = NULL,
+                  multiple = TRUE,
+                  options = list(
+                    plugins = list("remove_button"),
+                    placeholder = "All sources (click to filter)"
+                  )
                 )
               ),
 
-              selectizeInput(
-                "filter_domain",
-                label = "Domain",
-                choices = choices_domain,
-                selected = NULL,
-                multiple = TRUE,
-                options = list(
-                  plugins = list("remove_button"),
-                  placeholder = "All domains (click to filter)"
+              div(
+                id = "filter_domain_step",
+                selectizeInput(
+                  "filter_domain",
+                  label = "Domain",
+                  choices = choices_domain,
+                  selected = NULL,
+                  multiple = TRUE,
+                  options = list(
+                    plugins = list("remove_button"),
+                    placeholder = "All domains (click to filter)"
+                  )
                 )
               ),
 
-              selectizeInput(
-                "filter_type_var",
-                label = "Variable Type",
-                choices = choices_type_var,
-                selected = NULL,
-                multiple = TRUE,
-                options = list(
-                  plugins = list("remove_button"),
-                  placeholder = "All types (click to filter)"
+              div(
+                id = "filter_type_var_step",
+                selectizeInput(
+                  "filter_type_var",
+                  label = "Variable Type",
+                  choices = choices_type_var,
+                  selected = NULL,
+                  multiple = TRUE,
+                  options = list(
+                    plugins = list("remove_button"),
+                    placeholder = "All types (click to filter)"
+                  )
                 )
               )
             ),
@@ -356,8 +350,83 @@ ui <- page_fillable(
   )
 )
 
+# --- GUIDED TOUR (cicerone) ---
+# Defined at top level: the object is stateless config and is reusable across
+# sessions. Steps anchor to stable element IDs added in the UI above.
+guide <- Cicerone$
+  new()$
+  step("start_tour",
+       "Guided tour",
+       "Welcome! This quick tour walks you through every control for searching the ABCD data dictionary. You can relaunch it anytime from this button.",
+       position = "left")$
+  step("search_query",
+       "Describe what you need",
+       "Type a plain-language description of the variables you're looking for, e.g. 'bullying at school'.",
+       position = "right")$
+  step("cutoff_step",
+       "Similarity threshold",
+       "Raise this to return stricter, more relevant matches; lower it to cast a wider net.",
+       position = "right")$
+  step("choose_model_step",
+       "Choose your model",
+       "Pick which embedding model powers the search. 'No imaging' skips imaging variables; the 'all' model searches the full dictionary.",
+       position = "right")$
+  step("run_search",
+       "Run the search",
+       "Click here to find the variables that best match your description.",
+       position = "right")$
+  step("right_sidebar",
+       "Refine your results",
+       "This panel holds the actions and filters you use to shape your results once a search returns.",
+       position = "left")$
+  step("delete_selected_rows",
+       "Remove rows",
+       "Select rows in the table, then click here to drop them from your current result set.",
+       position = "left")$
+  step("download_csv_btn",
+       "Export to CSV",
+       "Download your (filtered) results as a CSV for use in NBDCtools or your own analysis.",
+       position = "left")$
+  step("copy_names_btn",
+       "Copy variable names",
+       "Copy your current results' variable names to the clipboard, one per line — ready to paste into a script or NBDCtools.",
+       position = "left")$
+  step("filter_source_step",
+       "Filter by source",
+       "Narrow results to one or more data sources. Leave empty to include every source.",
+       position = "left")$
+  step("filter_domain_step",
+       "Filter by domain",
+       "Restrict results to specific domains. Leave empty to include every domain.",
+       position = "left")$
+  step("filter_type_var_step",
+       "Filter by variable type",
+       "Restrict results to specific variable types. Leave empty to include every type.",
+       position = "left")
+
 # --- SERVER ---
 server <- function(input, output, session) {
+
+  # --- GUIDED TOUR ---
+  # Attach the tour config to this session before it can be started.
+  guide$init()
+
+  # Auto-start on a user's first ever visit. input$tour_seen arrives once per
+  # connect (see the localStorage JS bridge in the UI head block); once = TRUE
+  # guards against the observer re-firing within a session.
+  observeEvent(input$tour_seen, {
+    if (isFALSE(input$tour_seen)) {
+      guide$start()
+      # Mark this browser so the tour won't auto-start on future visits.
+      session$sendCustomMessage("mark_tour_seen", TRUE)
+    }
+  }, once = TRUE)
+
+  # Re-launch on demand from the header button.
+  observeEvent(input$start_tour, {
+    guide$start()
+  })
+
   
   # Store the "Master" search result (before manual filtering)
   master_results <- reactiveVal(dd[0, ])
@@ -379,8 +448,8 @@ server <- function(input, output, session) {
     # The bslib collapse-toggle (small arrow on each sidebar's edge) lets
     # users re-open either panel.
     if (isTRUE(isolate(input$window_width) <= 768)) {
-      bslib::sidebar_toggle("left_sidebar",  open = FALSE, session = session)
-      bslib::sidebar_toggle("right_sidebar", open = FALSE, session = session)
+      bslib::toggle_sidebar("left_sidebar",  open = FALSE, session = session)
+      bslib::toggle_sidebar("right_sidebar", open = FALSE, session = session)
     }
 
     # Show a modal, wait 1 second, then remove it

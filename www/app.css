@@ -21,9 +21,31 @@
 /* ============================================================
    1. Base layout
    ============================================================ */
+/* Scale all typography to 80% of the default. Bootstrap/bslib sizes text in
+   rem, which is relative to the root font size, so shrinking the root (16px ->
+   12.8px) proportionally reduces every font size across the app in one place.
+   (rem-based spacing scales too, keeping the layout proportional.) */
+html { font-size: 80%; }
+
 .card { height: 100%; }
 .form-group { margin-bottom: 15px; }
 .no-gap { gap: 0 !important; }
+
+/* Desktop 1:3:1 layout — shrink both sidebars so the middle table gets 3/5 of
+   the width. Each sidebar is 20vw of the viewport; the outer main is then 80vw,
+   and inside the results card the right sidebar takes another 20vw, leaving the
+   table ~60vw. Expressing both in vw (not container %) keeps the ratio exact
+   despite the right sidebar being nested inside the card. This overrides
+   bslib's inline --_sidebar-width, so !important is required. Scoped to desktop
+   (>=769px): below that the sidebars are overlays and keep their px widths so
+   they stay usable. Direct-child :has() disambiguates the two nested layouts —
+   the outer layout also *contains* #right_sidebar as a deep descendant. */
+@media (min-width: 769px) {
+  .bslib-sidebar-layout:has(> #left_sidebar),
+  .bslib-sidebar-layout:has(> #right_sidebar) {
+    --_sidebar-width: 20vw !important;
+  }
+}
 
 .scrollable-checkboxes {
   max-height: 200px;
@@ -209,15 +231,40 @@
   }
 
   /* 3.8 Compact, mobile-friendly table cells */
+
+  /* reactable sets an inline min-width equal to the SUM of every column's
+     minWidth (totalMinWidth) on the table/header/body/row flex containers, so
+     the whole row can't shrink below ~560px (name 180 + label 380) — it
+     overflows the viewport regardless of how individual cells are sized. This
+     is the real cause of the horizontal overflow; drop that floor on mobile so
+     rows shrink to the viewport and the cells (below) can wrap to fit. */
+  #results_table .rt-table,
+  #results_table .rt-thead,
+  #results_table .rt-tbody,
+  #results_table .rt-tr {
+    min-width: 0 !important;
+  }
+
   #results_table .rt-td,
   #results_table .rt-th {
     padding: 4px 6px !important;
     font-size: 0.8rem !important;
     line-height: 1.25 !important;
+    /* Let the two visible columns shrink to share the viewport width instead
+       of overflowing. Each colDef sets a minWidth (name 180, label 380) that
+       reactable applies as an inline min-width with flex-shrink:0, so on a
+       narrow screen the label column can't shrink below 380px — it overflows
+       and .rt-td-inner{overflow:hidden} clips the text. Dropping the min-width
+       floor and re-enabling shrink lets flex compress both columns to fit;
+       reactable's flex-grow (proportional to minWidth) keeps a ~1:2 split, and
+       the text wraps (see .rt-td rule below) rather than being cut off. */
+    min-width: 0 !important;
+    flex-shrink: 1 !important;
   }
   #results_table .rt-td {
     white-space: normal !important;
     word-break: break-word !important;
+    overflow-wrap: anywhere !important;
   }
   #results_table .rt-page-info,
   #results_table .rt-page-size {
@@ -250,4 +297,33 @@
     max-width: calc(100% - 1rem) !important;
   }
   .modal-body { padding: 0.75rem !important; }
+}
+
+/* ==========================================================================
+   4. Guided tour (cicerone / driver.js 0.9.x)
+   ==========================================================================
+   The app shell is page_fillable() — a non-scrolling, overflow-clipped flex
+   viewport. driver.js positions its popover with `position: absolute`, so any
+   part of it that lands over a clipped container edge gets cut off ("the tour
+   dialog does not fit into the app window"). Because the window itself never
+   scrolls in a fillable page, page coordinates equal viewport coordinates, so
+   promoting the popover to `position: fixed` keeps driver.js's computed
+   left/top correct while freeing it from ancestor overflow clipping.
+   The width/height caps keep the popover inside small windows. */
+#driver-popover-item {
+  position: fixed !important;
+  max-width: min(92vw, 340px) !important;
+  max-height: 85vh !important;
+  overflow-y: auto !important;
+  box-sizing: border-box;
+}
+
+/* Disable the guided tour on small screens (matches the 768px mobile
+   breakpoint used elsewhere): the sidebars collapse at this width, so tour
+   highlights would frame hidden controls. The auto-start is suppressed in JS;
+   this hides the manual "Take a tour" launcher so there's no way in. */
+@media (max-width: 768px) {
+  #start_tour {
+    display: none !important;
+  }
 }
